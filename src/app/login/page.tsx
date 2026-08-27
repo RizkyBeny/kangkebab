@@ -23,11 +23,11 @@ export default function LoginPage() {
     setSubmitting(true);
     setErrorMsg('');
 
-    const success = await login(email, password);
-    if (success) {
+    const result = await login(email, password);
+    if (result.success) {
       router.push('/');
     } else {
-      setErrorMsg('Email atau password tidak sesuai. Silakan periksa kembali.');
+      setErrorMsg(result.error || 'Email atau password tidak sesuai. Silakan periksa kembali.');
       setSubmitting(false);
     }
   };
@@ -38,11 +38,11 @@ export default function LoginPage() {
     setSubmitting(true);
     setErrorMsg('');
 
-    const success = await login(demoEmail, demoPass);
-    if (success) {
+    const result = await login(demoEmail, demoPass);
+    if (result.success) {
       router.push('/');
     } else {
-      setErrorMsg('Gagal login akun demo');
+      setErrorMsg(result.error || 'Email atau password tidak sesuai. Silakan periksa kembali.');
       setSubmitting(false);
     }
   };

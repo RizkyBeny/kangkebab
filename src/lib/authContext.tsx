@@ -6,14 +6,14 @@ import { User } from '@/types';
 interface AuthContextType {
   currentUser: User | null;
   loading: boolean;
-  login: (email: string, pass: string) => Promise<boolean>;
+  login: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
   currentUser: null,
   loading: true,
-  login: async () => false,
+  login: async () => ({ success: false }),
   logout: () => {},
 });
 
@@ -34,11 +34,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(false);
   }, []);
 
-  const login = async (email: string, pass: string): Promise<boolean> => {
+  const login = async (email: string, pass: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      const res = await fetch('/api/auth');
+      const res = await fetch('/api/auth', { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
       const data = await res.json();
-      if (!data.success) return false;
+      if (!data.success) return { success: false, error: data.error || 'Gagal memuat data pengguna dari server.' };
 
       const users: User[] = data.data.users;
       const found = users.find(
@@ -48,11 +48,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (found) {
         setCurrentUser(found);
         localStorage.setItem('kangkebab_user_session', JSON.stringify(found));
-        return true;
+        return { success: true };
       }
-      return false;
-    } catch (err) {
-      return false;
+      return { success: false };
+    } catch (err: any) {
+      return { success: false, error: err.message };
     }
   };
 
