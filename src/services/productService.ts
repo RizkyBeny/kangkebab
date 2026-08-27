@@ -3,6 +3,7 @@ import { MasterProduct } from '@/types';
 
 export async function getMasterProducts(): Promise<MasterProduct[]> {
   const products = await prisma.masterProduct.findMany({
+    where: { isActive: true },
     orderBy: { sku: 'asc' },
   });
   return products as unknown as MasterProduct[];
@@ -98,7 +99,7 @@ export async function updateMasterProduct(
 
 export async function deleteMasterProduct(id: string, userId: string, userName: string): Promise<void> {
   const prod = await prisma.masterProduct.findUnique({ where: { id } });
-  await prisma.masterProduct.delete({ where: { id } });
+  await prisma.masterProduct.update({ where: { id }, data: { isActive: false } });
 
   await prisma.auditLog.create({
     data: {

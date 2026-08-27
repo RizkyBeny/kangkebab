@@ -42,6 +42,7 @@ model MasterProduct {
   costPrice           Float
   offlineSellingPrice Float
   onlineSellingPrice  Float
+  isActive            Boolean  @default(true)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 

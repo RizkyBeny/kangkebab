@@ -14,6 +14,7 @@ async function main() {
   await prisma.auditLog.deleteMany();
   await prisma.user.deleteMany();
   await prisma.branch.deleteMany();
+  await prisma.masterProduct.deleteMany();
 
   // 1. Create Branches
   const hqBranch = await prisma.branch.create({

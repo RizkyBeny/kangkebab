@@ -177,7 +177,7 @@ export default function Home() {
 
   if (authLoading || !currentUser) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center text-xs text-slate-500 font-medium">
+      <div className="min-h-screen bg-background flex items-center justify-center text-xs text-muted-foreground font-medium">
         Memverifikasi sesi login...
       </div>
     );
@@ -186,7 +186,9 @@ export default function Home() {
   const pendingReceptionCount = shipments.filter((s) => s.status === 'DIKIRIM').length;
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex font-sans selection:bg-slate-200">
+    <div className="min-h-screen bg-background text-foreground flex font-sans selection:bg-primary/20 relative overflow-hidden">
+      {/* Subtle Neoxa backdrop glows for the dashboard */}
+      <div className="absolute top-0 left-0 w-full h-[300px] bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
       {/* Toast Notification Banner */}
       {toastMessage && (
         <div className="fixed top-16 right-4 z-50 animate-bounce bg-slate-900 text-white font-bold text-xs px-4 py-3 rounded-2xl shadow-xl flex items-center space-x-2 border border-slate-700">
@@ -270,7 +272,7 @@ export default function Home() {
         </main>
 
         {/* Footer */}
-        <footer className="border-t border-slate-200 bg-white py-4 text-center text-xs text-slate-400 font-medium">
+        <footer className="border-t border-border/50 bg-card/50 backdrop-blur-sm py-4 text-center text-xs text-muted-foreground font-medium relative z-10">
           KangKebab Multichannel System © 2026 — Built with Next.js, Prisma, Local SQLite &amp; SSE Realtime
         </footer>
       </div>

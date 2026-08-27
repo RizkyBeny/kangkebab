@@ -21,7 +21,7 @@ export async function getConsolidatedFinancials(filters?: {
     }
     if (filters.endDate) {
       const end = new Date(filters.endDate);
-      end.setHours(23, 59, 59, 999);
+      end.setUTCHours(23, 59, 59, 999);
       txWhere.createdAt.lte = end;
     }
   }

@@ -48,29 +48,33 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 selection:bg-slate-200">
-      <Card className="w-full max-w-md shadow-xl border-slate-200">
-        <CardHeader className="text-center space-y-2">
-          <div className="w-12 h-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center font-black text-xl mx-auto shadow-md mb-2">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4 selection:bg-primary/20 relative overflow-hidden">
+      {/* Decorative background shapes */}
+      <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-primary/5 blur-[100px] pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40vw] h-[40vw] rounded-full bg-primary/10 blur-[120px] pointer-events-none" />
+
+      <Card className="w-full max-w-md shadow-2xl shadow-primary/5 border-border/50 bg-card/90 backdrop-blur-xl relative z-10">
+        <CardHeader className="text-center space-y-2 pt-8">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground flex items-center justify-center font-black text-2xl mx-auto shadow-lg shadow-primary/20 mb-2">
             KK
           </div>
-          <CardTitle className="text-2xl font-bold tracking-tight">KangKebab POS</CardTitle>
-          <CardDescription className="text-xs font-medium">Sistem Stock Opname &amp; POS Realtime Multichannel</CardDescription>
+          <CardTitle className="text-2xl font-bold tracking-tight text-foreground">KangKebab POS</CardTitle>
+          <CardDescription className="text-xs font-medium text-muted-foreground">Sistem Stock Opname &amp; POS Realtime</CardDescription>
         </CardHeader>
         <CardContent>
           {errorMsg && (
-            <Alert variant="destructive" className="mb-6">
+            <Alert variant="destructive" className="mb-6 bg-destructive/10 border-destructive/20 text-destructive">
               <AlertDescription className="font-medium text-xs">
                 {errorMsg}
               </AlertDescription>
             </Alert>
           )}
 
-          <form onSubmit={handleLoginSubmit} className="space-y-4">
+          <form onSubmit={handleLoginSubmit} className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-xs font-semibold">Email Akses</Label>
+              <Label htmlFor="email" className="text-xs font-semibold text-foreground/80">Email Akses</Label>
               <div className="relative">
-                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                <Mail className="w-4 h-4 text-muted-foreground absolute left-3.5 top-3.5" />
                 <Input
                   id="email"
                   type="email"
@@ -78,15 +82,15 @@ export default function LoginPage() {
                   placeholder="nama@kangkebab.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10 py-5 text-xs bg-slate-50 focus-visible:bg-white transition-all"
+                  className="pl-10 py-5 text-xs bg-background/50 focus-visible:bg-background border-border/50 transition-all focus-visible:ring-primary/30 shadow-sm"
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-xs font-semibold">Password</Label>
+              <Label htmlFor="password" className="text-xs font-semibold text-foreground/80">Password</Label>
               <div className="relative">
-                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                <Lock className="w-4 h-4 text-muted-foreground absolute left-3.5 top-3.5" />
                 <Input
                   id="password"
                   type="password"
@@ -94,7 +98,7 @@ export default function LoginPage() {
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10 py-5 text-xs bg-slate-50 focus-visible:bg-white transition-all"
+                  className="pl-10 py-5 text-xs bg-background/50 focus-visible:bg-background border-border/50 transition-all focus-visible:ring-primary/30 shadow-sm"
                 />
               </div>
             </div>
@@ -102,7 +106,7 @@ export default function LoginPage() {
             <Button
               type="submit"
               disabled={submitting}
-              className="w-full h-11 text-xs font-bold shadow-md mt-2"
+              className="w-full h-11 text-xs font-bold shadow-lg shadow-primary/20 mt-4 transition-all hover:translate-y-[-2px]"
             >
               {submitting ? 'Memproses Login...' : 'Masuk Ke Dashboard'}
               <ArrowRight className="w-4 h-4 ml-2" />
@@ -110,37 +114,39 @@ export default function LoginPage() {
           </form>
         </CardContent>
 
-        <CardFooter className="flex-col border-t border-slate-100 pt-6">
-          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider text-center flex items-center justify-center gap-1 mb-4">
+        <CardFooter className="flex-col border-t border-border/50 pt-6 bg-muted/20 rounded-b-xl">
+          <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-center flex items-center justify-center gap-1 mb-4">
             <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Akses Cepat Akun Demo
           </div>
 
-          <div className="grid grid-cols-2 gap-2.5 w-full">
+          <div className="grid grid-cols-2 gap-3 w-full">
             <Button
               variant="outline"
+              type="button"
               onClick={() => handleQuickDemoLogin('admin@kangkebab.com', 'admin123')}
-              className="h-auto p-3 justify-start bg-slate-50 hover:bg-slate-100 transition-all"
+              className="h-auto p-3 justify-start bg-background/50 hover:bg-background border-border/50 hover:border-primary/30 hover:shadow-md transition-all group"
             >
               <div className="flex flex-col items-start gap-1">
-                <div className="flex items-center space-x-1.5 text-xs font-bold text-slate-800">
-                  <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+                <div className="flex items-center space-x-1.5 text-xs font-bold text-foreground">
+                  <ShieldCheck className="w-4 h-4 text-primary group-hover:scale-110 transition-transform" />
                   <span>HQ Admin</span>
                 </div>
-                <div className="text-[10px] text-slate-500 font-normal">Pusat &amp; Financials</div>
+                <div className="text-[10px] text-muted-foreground font-normal">Pusat &amp; Finansial</div>
               </div>
             </Button>
 
             <Button
               variant="outline"
+              type="button"
               onClick={() => handleQuickDemoLogin('staff.madiun@kangkebab.com', 'staff123')}
-              className="h-auto p-3 justify-start bg-slate-50 hover:bg-slate-100 transition-all"
+              className="h-auto p-3 justify-start bg-background/50 hover:bg-background border-border/50 hover:border-primary/30 hover:shadow-md transition-all group"
             >
               <div className="flex flex-col items-start gap-1">
-                <div className="flex items-center space-x-1.5 text-xs font-bold text-slate-800">
-                  <Store className="w-3.5 h-3.5 text-emerald-600" />
+                <div className="flex items-center space-x-1.5 text-xs font-bold text-foreground">
+                  <Store className="w-4 h-4 text-emerald-500 group-hover:scale-110 transition-transform" />
                   <span>Kasir Madiun</span>
                 </div>
-                <div className="text-[10px] text-slate-500 font-normal">Cabang Madiun POS</div>
+                <div className="text-[10px] text-muted-foreground font-normal">Cabang Madiun</div>
               </div>
             </Button>
           </div>
