@@ -14,6 +14,7 @@ async function main() {
   await prisma.auditLog.deleteMany();
   await prisma.user.deleteMany();
   await prisma.branch.deleteMany();
+  await prisma.masterProduct.deleteMany();
 
   // 1. Create Branches
   const hqBranch = await prisma.branch.create({
@@ -98,10 +99,8 @@ async function main() {
   ];
 
   for (const prod of products) {
-    await prisma.masterProduct.upsert({
-      where: { sku: prod.sku },
-      update: prod,
-      create: prod,
+    await prisma.masterProduct.create({
+      data: prod,
     });
   }
 
