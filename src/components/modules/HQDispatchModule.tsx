@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { MasterProduct, Shipment, Branch, User } from '@/types';
 import { formatRupiah, formatDate } from '@/constants';
-import { Truck, Send, Plus, Trash2, CheckCircle2, Clock, Eye, Info } from 'lucide-react';
+import { Truck, Send, Plus, Trash2, CheckCircle2, Clock, Eye, Info, Edit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -52,9 +52,26 @@ export const HQDispatchModule: React.FC<HQDispatchModuleProps> = ({
 
   const targetBranches = branches.filter((b) => b.code !== 'HQ');
 
-  const openModal = () => {
+  const [editingShipmentId, setEditingShipmentId] = useState<string | null>(null);
+
+  const openCreateModal = () => {
+    setEditingShipmentId(null);
     setTargetBranchId(targetBranches[0]?.id || '');
     setDispatchItems([]);
+    setErrorMsg('');
+    setShowModal(true);
+  };
+
+  const openEditModal = (shipment: Shipment) => {
+    setEditingShipmentId(shipment.id);
+    setTargetBranchId(shipment.branchId);
+    setDispatchItems(
+      shipment.items.map((i: any) => ({
+        masterProductId: i.masterProductId,
+        qtySent: i.qtySent,
+        costPrice: i.costPrice,
+      }))
+    );
     setErrorMsg('');
     setShowModal(true);
   };
@@ -101,10 +118,14 @@ export const HQDispatchModule: React.FC<HQDispatchModuleProps> = ({
     setErrorMsg('');
 
     try {
-      const res = await fetch('/api/shipments', {
-        method: 'POST',
+      const url = editingShipmentId ? '/api/shipments' : '/api/shipments';
+      const method = editingShipmentId ? 'PATCH' : 'POST';
+      
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          shipmentId: editingShipmentId,
           branchId: targetBranchId,
           items: dispatchItems,
           userId: currentUser.id,
@@ -136,7 +157,7 @@ export const HQDispatchModule: React.FC<HQDispatchModuleProps> = ({
             Catat alokasi pengiriman barang ke cabang. Cabang akan menerima notifikasi real-time (&lt;5 detik) untuk melakukan validasi penerimaan.
           </p>
         </div>
-        <Button onClick={openModal} className="h-11 md:h-10 text-xs md:text-sm font-bold shadow-sm w-full sm:w-auto">
+        <Button onClick={openCreateModal} className="h-11 md:h-10 text-xs md:text-sm font-bold shadow-sm w-full sm:w-auto">
           <Send className="w-4 h-4 mr-2" />
           Kirim Stok Baru
         </Button>
@@ -186,9 +207,16 @@ export const HQDispatchModule: React.FC<HQDispatchModuleProps> = ({
                     )}
                   </TableCell>
                   <TableCell>
-                    <Button variant="outline" size="sm" onClick={() => setSelectedShipment(s)} className="h-8 text-xs font-semibold">
-                      <Eye className="w-3.5 h-3.5 mr-2" /> Lihat Rincian
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setSelectedShipment(s)} className="h-8 text-xs font-semibold">
+                        <Eye className="w-3.5 h-3.5 md:mr-2" /> <span className="hidden md:inline">Lihat Rincian</span>
+                      </Button>
+                      {s.status === 'DIKIRIM' && (
+                        <Button variant="outline" size="sm" onClick={() => openEditModal(s)} className="h-8 text-xs font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200">
+                          <Edit className="w-3.5 h-3.5 md:mr-2" /> <span className="hidden md:inline">Edit</span>
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
@@ -236,9 +264,16 @@ export const HQDispatchModule: React.FC<HQDispatchModuleProps> = ({
                   )}
                 </div>
 
-                <Button variant="outline" className="w-full h-10 text-xs font-bold" onClick={() => setSelectedShipment(s)}>
-                  <Eye className="w-4 h-4 mr-2" /> Lihat Rincian Barang
-                </Button>
+                <div className="flex gap-2 pt-2">
+                  <Button variant="outline" className="flex-1 h-10 text-xs font-bold" onClick={() => setSelectedShipment(s)}>
+                    <Eye className="w-4 h-4 mr-2" /> Rincian
+                  </Button>
+                  {s.status === 'DIKIRIM' && (
+                    <Button variant="outline" className="flex-1 h-10 text-xs font-bold text-blue-600 border-blue-200 hover:bg-blue-50" onClick={() => openEditModal(s)}>
+                      <Edit className="w-4 h-4 mr-2" /> Edit
+                    </Button>
+                  )}
+                </div>
               </CardContent>
             </Card>
           ))
@@ -302,12 +337,12 @@ export const HQDispatchModule: React.FC<HQDispatchModuleProps> = ({
         )}
       </ResponsiveModal>
 
-      {/* Create Shipment Modal */}
+      {/* Create / Edit Shipment Modal */}
       <ResponsiveModal
         open={showModal}
         onOpenChange={setShowModal}
-        title="Input Pengiriman Barang"
-        icon={<Send className="w-5 h-5" />}
+        title={editingShipmentId ? 'Edit Pengiriman Barang' : 'Input Pengiriman Barang'}
+        icon={editingShipmentId ? <Edit className="w-5 h-5" /> : <Send className="w-5 h-5" />}
       >
         {errorMsg && (
           <Alert variant="destructive" className="mb-4">
@@ -318,8 +353,8 @@ export const HQDispatchModule: React.FC<HQDispatchModuleProps> = ({
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-slate-700">Pilih Cabang Tujuan</Label>
-            <Select value={targetBranchId} onValueChange={(val) => setTargetBranchId(val || '')}>
-              <SelectTrigger className="w-full text-sm md:text-xs h-11 md:h-10 bg-slate-50">
+            <Select value={targetBranchId} onValueChange={(val) => setTargetBranchId(val || '')} disabled={!!editingShipmentId}>
+              <SelectTrigger className="w-full text-sm md:text-xs h-11 md:h-10 bg-slate-50 disabled:opacity-70 disabled:cursor-not-allowed">
                 <span className="flex flex-1 text-left">
                   {targetBranchId 
                     ? (() => {
@@ -337,6 +372,9 @@ export const HQDispatchModule: React.FC<HQDispatchModuleProps> = ({
                 ))}
               </SelectContent>
             </Select>
+            {editingShipmentId && (
+              <p className="text-[10px] text-amber-600 font-medium">Cabang tujuan tidak dapat diubah pada mode edit.</p>
+            )}
           </div>
 
           <div className="space-y-3 pt-2">
@@ -410,7 +448,7 @@ export const HQDispatchModule: React.FC<HQDispatchModuleProps> = ({
               Batal
             </Button>
             <Button type="submit" disabled={loading} className="flex-1 h-11 md:h-10 text-xs font-bold bg-slate-900 text-white hover:bg-slate-800">
-              {loading ? 'Memproses...' : 'Kirim Barang'}
+              {loading ? 'Memproses...' : editingShipmentId ? 'Simpan Perubahan' : 'Kirim Barang'}
             </Button>
           </div>
         </form>

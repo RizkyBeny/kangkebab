@@ -197,3 +197,77 @@ export async function confirmShipmentReception(
 
   return updatedShipment as unknown as Shipment;
 }
+
+export async function updateShipment(
+  shipmentId: string,
+  data: {
+    items: { masterProductId: string; qtySent: number; costPrice: number }[];
+    userId: string;
+    userName: string;
+  }
+): Promise<Shipment> {
+  const shipment = await prisma.shipment.findUnique({
+    where: { id: shipmentId },
+    include: { branch: true },
+  });
+
+  if (!shipment) throw new Error('Pengiriman tidak ditemukan');
+  if (shipment.status !== 'DIKIRIM') throw new Error('Hanya pengiriman berstatus Menunggu Cabang yang dapat diubah');
+
+  const operations: any[] = [];
+
+  // Delete all existing items
+  operations.push(prisma.shipmentItem.deleteMany({ where: { shipmentId } }));
+
+  // Re-create items with the new data
+  operations.push(
+    prisma.shipment.update({
+      where: { id: shipmentId },
+      data: {
+        items: {
+          create: data.items.map((item) => ({
+            masterProductId: item.masterProductId,
+            costPrice: item.costPrice,
+            qtySent: item.qtySent,
+            qtyReceived: 0,
+            qtyDamaged: 0,
+          })),
+        },
+      },
+      include: {
+        branch: true,
+        items: {
+          include: {
+            masterProduct: true,
+          },
+        },
+      },
+    })
+  );
+
+  // Audit log
+  operations.push(
+    prisma.auditLog.create({
+      data: {
+        userId: data.userId,
+        userName: data.userName,
+        action: 'UPDATE_SHIPMENT',
+        entity: 'Shipment',
+        entityId: shipmentId,
+        details: `Mengubah rincian pengiriman ${shipment.shipmentNumber} ke ${shipment.branch.name}`,
+      },
+    })
+  );
+
+  const results = await prisma.$transaction(operations);
+  const updatedShipment = results[1]; // The update query
+
+  sseBroadcaster.emit('SHIPMENT_UPDATED', {
+    type: 'SHIPMENT_EDITED',
+    branchId: shipment.branchId,
+    shipmentId,
+    timestamp: new Date().toISOString(),
+  });
+
+  return updatedShipment as unknown as Shipment;
+}
