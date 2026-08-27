@@ -131,11 +131,11 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
-          <h2 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight flex items-start gap-2 leading-tight">
-            <Tag className="w-6 h-6 text-slate-700 flex-shrink-0 mt-0.5 md:mt-1" />
+          <h2 className="text-xl md:text-2xl font-bold text-foreground tracking-tight flex items-start gap-2 leading-tight">
+            <Tag className="w-6 h-6 text-primary flex-shrink-0 mt-0.5 md:mt-1" />
             <span>Master Data &amp; Pricing</span>
           </h2>
-          <p className="text-xs md:text-sm text-slate-500 mt-1.5 font-medium leading-relaxed max-w-lg">
+          <p className="text-xs md:text-sm text-muted-foreground mt-1.5 font-medium leading-relaxed max-w-lg">
             Kelola katalog master produk, harga modal, serta penetapan harga jual Offline &amp; Online secara terpusat untuk seluruh cabang.
           </p>
         </div>
@@ -147,28 +147,28 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
 
       {/* Search Bar */}
       <div className="relative max-w-md">
-        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+        <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
         <Input
           type="text"
           placeholder="Cari nama, SKU, atau varian..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="pl-9 h-11 md:h-10 text-xs md:text-sm bg-white shadow-sm border-slate-200 rounded-xl md:rounded-lg focus-visible:ring-slate-300 transition-all"
+          className="pl-9 h-11 md:h-10 text-xs md:text-sm bg-background shadow-sm border-border rounded-xl md:rounded-lg focus-visible:ring-primary/30 transition-all"
         />
       </div>
 
       {/* Desktop Table View */}
-      <Card className="shadow-sm border-slate-200 hidden md:block overflow-hidden rounded-xl">
+      <Card className="shadow-sm border-border hidden md:block overflow-hidden rounded-xl bg-card">
         <Table>
-          <TableHeader className="bg-slate-50/80 border-b border-slate-100">
+          <TableHeader className="bg-muted/50 border-b border-border">
             <TableRow className="hover:bg-transparent">
-              <TableHead className="text-[11px] font-bold text-slate-500 uppercase tracking-wider py-4">SKU</TableHead>
-              <TableHead className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Produk &amp; Varian</TableHead>
-              <TableHead className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Modal (COGS)</TableHead>
-              <TableHead className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Jual Offline</TableHead>
-              <TableHead className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Jual Online</TableHead>
-              <TableHead className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Margin (%)</TableHead>
-              <TableHead className="text-[11px] font-bold text-slate-500 uppercase tracking-wider text-right">Aksi</TableHead>
+              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider py-4">SKU</TableHead>
+              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Produk &amp; Varian</TableHead>
+              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Modal (COGS)</TableHead>
+              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Jual Offline</TableHead>
+              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Jual Online</TableHead>
+              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Margin (%)</TableHead>
+              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -183,33 +183,33 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
                 const offMargin = p.offlineSellingPrice > 0 ? ((p.offlineSellingPrice - p.costPrice) / p.offlineSellingPrice) * 100 : 0;
                 const onMargin = p.onlineSellingPrice > 0 ? ((p.onlineSellingPrice - p.costPrice) / p.onlineSellingPrice) * 100 : 0;
                 return (
-                  <TableRow key={p.id} className="group transition-colors hover:bg-slate-50/50">
-                    <TableCell className="font-mono text-slate-600 font-medium text-xs py-4">{p.sku}</TableCell>
+                  <TableRow key={p.id} className="group transition-colors hover:bg-muted/30">
+                    <TableCell className="font-mono text-muted-foreground font-medium text-xs py-4">{p.sku}</TableCell>
                     <TableCell>
-                      <div className="font-bold text-slate-900 text-sm">{p.name}</div>
-                      <div className="text-xs text-slate-500 mt-0.5">{p.variant}</div>
+                      <div className="font-bold text-foreground text-sm">{p.name}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">{p.variant}</div>
                     </TableCell>
-                    <TableCell className="font-mono text-slate-600 font-medium text-xs">
+                    <TableCell className="font-mono text-muted-foreground font-medium text-xs">
                       {formatRupiah(p.costPrice)}
                     </TableCell>
                     <TableCell>
-                      <span className="font-mono font-semibold text-emerald-700 text-sm">{formatRupiah(p.offlineSellingPrice)}</span>
+                      <span className="font-mono font-semibold text-emerald-600 text-sm">{formatRupiah(p.offlineSellingPrice)}</span>
                     </TableCell>
                     <TableCell>
-                      <span className="font-mono font-semibold text-indigo-700 text-sm">{formatRupiah(p.onlineSellingPrice)}</span>
+                      <span className="font-mono font-semibold text-primary text-sm">{formatRupiah(p.onlineSellingPrice)}</span>
                     </TableCell>
                     <TableCell>
                       <div className="text-[11px] font-semibold space-y-1">
-                        <div className="text-emerald-600/90 flex items-center gap-1.5"><StoreIcon className="w-3 h-3"/> {offMargin.toFixed(1)}%</div>
-                        <div className="text-indigo-600/90 flex items-center gap-1.5"><PhoneIcon className="w-3 h-3"/> {onMargin.toFixed(1)}%</div>
+                        <div className="text-emerald-600 flex items-center gap-1.5"><StoreIcon className="w-3 h-3"/> {offMargin.toFixed(1)}%</div>
+                        <div className="text-primary flex items-center gap-1.5"><PhoneIcon className="w-3 h-3"/> {onMargin.toFixed(1)}%</div>
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex items-center justify-end space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button variant="outline" size="sm" onClick={() => openEditModal(p)} className="h-8 text-xs font-semibold">
+                      <div className="flex items-center justify-end space-x-2">
+                        <Button variant="outline" size="sm" onClick={() => openEditModal(p)} className="h-8 text-xs font-semibold hover:border-primary hover:text-primary transition-colors">
                           Edit
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(p.id)} className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50">
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(p.id)} className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>

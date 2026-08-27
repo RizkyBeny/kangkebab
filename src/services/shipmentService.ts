@@ -106,24 +106,29 @@ export async function confirmShipmentReception(
   if (!shipment) throw new Error('Pengiriman tidak ditemukan');
   if (shipment.status === 'DITERIMA') throw new Error('Pengiriman ini sudah divalidasi sebelumnya');
 
-  return await prisma.$transaction(async (tx: any) => {
-    // 1. Update items in shipment
-    for (const conf of itemsConfirmed) {
-      const item = shipment.items.find((i: any) => i.id === conf.itemId);
-      if (!item) continue;
+  // We use sequential transaction array to avoid Interactive Transaction timeouts with Supabase PgBouncer
+  const operations: any[] = [];
 
-      const qtyGood = Math.max(0, conf.qtyReceived - conf.qtyDamaged);
+  // 1. Update items in shipment
+  for (const conf of itemsConfirmed) {
+    const item = shipment.items.find((i: any) => i.id === conf.itemId);
+    if (!item) continue;
 
-      await tx.shipmentItem.update({
+    const qtyGood = Math.max(0, conf.qtyReceived - conf.qtyDamaged);
+
+    operations.push(
+      prisma.shipmentItem.update({
         where: { id: conf.itemId },
         data: {
           qtyReceived: conf.qtyReceived,
           qtyDamaged: conf.qtyDamaged,
         },
-      });
+      })
+    );
 
-      // Update Branch Inventory
-      await tx.branchInventory.upsert({
+    // Update Branch Inventory
+    operations.push(
+      prisma.branchInventory.upsert({
         where: {
           branchId_masterProductId: {
             branchId: shipment.branchId,
@@ -140,11 +145,13 @@ export async function confirmShipmentReception(
           qtyAvailable: { increment: qtyGood },
           qtyDamaged: { increment: conf.qtyDamaged },
         },
-      });
-    }
+      })
+    );
+  }
 
-    // 2. Mark shipment as DITERIMA
-    const updatedShipment = await tx.shipment.update({
+  // 2. Mark shipment as DITERIMA
+  operations.push(
+    prisma.shipment.update({
       where: { id: shipmentId },
       data: {
         status: 'DITERIMA',
@@ -158,11 +165,13 @@ export async function confirmShipmentReception(
           },
         },
       },
-    });
+    })
+  );
 
-    // 3. Audit log
-    const totalDamaged = itemsConfirmed.reduce((acc, curr) => acc + curr.qtyDamaged, 0);
-    await tx.auditLog.create({
+  // 3. Audit log
+  const totalDamaged = itemsConfirmed.reduce((acc, curr) => acc + curr.qtyDamaged, 0);
+  operations.push(
+    prisma.auditLog.create({
       data: {
         userId,
         userName,
@@ -171,16 +180,20 @@ export async function confirmShipmentReception(
         entityId: shipmentId,
         details: `Cabang ${shipment.branch.name} memvalidasi penerimaan ${shipment.shipmentNumber}. Total barang rusak/kurang: ${totalDamaged} unit`,
       },
-    });
+    })
+  );
 
-    // Realtime SSE Broadcast event
-    sseBroadcaster.emit('SHIPMENT_UPDATED', {
-      type: 'SHIPMENT_RECEIVED',
-      branchId: shipment.branchId,
-      shipmentId,
-      timestamp: new Date().toISOString(),
-    });
+  // Execute all operations in a single sequential transaction
+  const results = await prisma.$transaction(operations);
+  const updatedShipment = results[results.length - 2]; // The shipment.update is the second to last operation
 
-    return updatedShipment as unknown as Shipment;
+  // Realtime SSE Broadcast event
+  sseBroadcaster.emit('SHIPMENT_UPDATED', {
+    type: 'SHIPMENT_RECEIVED',
+    branchId: shipment.branchId,
+    shipmentId,
+    timestamp: new Date().toISOString(),
   });
+
+  return updatedShipment as unknown as Shipment;
 }
