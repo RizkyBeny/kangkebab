@@ -320,7 +320,14 @@ export const HQDispatchModule: React.FC<HQDispatchModuleProps> = ({
             <Label className="text-xs font-semibold text-slate-700">Pilih Cabang Tujuan</Label>
             <Select value={targetBranchId} onValueChange={(val) => setTargetBranchId(val || '')}>
               <SelectTrigger className="w-full text-sm md:text-xs h-11 md:h-10 bg-slate-50">
-                <SelectValue placeholder="Pilih cabang..." />
+                <span className="flex flex-1 text-left">
+                  {targetBranchId 
+                    ? (() => {
+                        const b = targetBranches.find((x) => x.id === targetBranchId);
+                        return b ? `${b.name} (${b.code})` : "Pilih cabang...";
+                      })()
+                    : "Pilih cabang..."}
+                </span>
               </SelectTrigger>
               <SelectContent>
                 {targetBranches.map((b) => (
@@ -356,7 +363,14 @@ export const HQDispatchModule: React.FC<HQDispatchModuleProps> = ({
                       onValueChange={(val) => updateItemRow(idx, 'masterProductId', val || '')}
                     >
                       <SelectTrigger className="w-full h-11 md:h-10 text-sm md:text-xs bg-white">
-                        <SelectValue placeholder="Pilih produk..." />
+                        <span className="flex flex-1 text-left line-clamp-1">
+                          {item.masterProductId
+                            ? (() => {
+                                const p = products.find((x) => x.id === item.masterProductId);
+                                return p ? `${p.name} (${p.variant})` : "Pilih produk...";
+                              })()
+                            : "Pilih produk..."}
+                        </span>
                       </SelectTrigger>
                       <SelectContent>
                         {products.map((p) => (
