@@ -325,7 +325,7 @@ export const HQDispatchModule: React.FC<HQDispatchModuleProps> = ({
               <SelectContent>
                 {targetBranches.map((b) => (
                   <SelectItem key={b.id} value={b.id} className="text-sm md:text-xs">
-                    {b.name} ({b.code})
+                    {`${b.name} (${b.code})`}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -361,7 +361,7 @@ export const HQDispatchModule: React.FC<HQDispatchModuleProps> = ({
                       <SelectContent>
                         {products.map((p) => (
                           <SelectItem key={p.id} value={p.id} className="text-sm md:text-xs">
-                            {p.name} ({p.variant})
+                            {`${p.name} (${p.variant})`}
                           </SelectItem>
                         ))}
                       </SelectContent>

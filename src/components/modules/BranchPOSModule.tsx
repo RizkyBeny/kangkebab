@@ -134,9 +134,9 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
 
   const cartContent = (
     <div className="space-y-4">
-      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-        <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-          <ShoppingCart className="w-4 h-4 text-slate-700" />
+      <div className="flex items-center justify-between border-b border-border pb-3">
+        <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+          <ShoppingCart className="w-4 h-4 text-muted-foreground" />
           Keranjang POS ({cartItemsCount})
         </h3>
         {cart.length > 0 && (
@@ -154,12 +154,12 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
       )}
 
       {cart.length === 0 ? (
-        <div className="p-6 text-center text-xs text-slate-400 space-y-1">
-          <p className="font-bold text-slate-600">Keranjang masih kosong.</p>
+        <div className="p-6 text-center text-xs text-muted-foreground space-y-1">
+          <p className="font-bold text-foreground/80">Keranjang masih kosong.</p>
           <p className="text-[11px]">Pilih produk dari katalog untuk memulai transaksi.</p>
         </div>
       ) : (
-        <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1 divide-y divide-slate-100">
+        <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1 divide-y divide-border">
           {cart.map((item) => {
             const inv = inventories.find((i) => i.masterProductId === item.masterProductId);
             if (!inv) return null;
@@ -169,8 +169,8 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
             return (
               <div key={item.masterProductId} className="pt-2.5 flex items-center justify-between">
                 <div>
-                  <div className="font-bold text-xs text-slate-900">{prod.name}</div>
-                  <div className="text-[10px] text-slate-500 font-medium">
+                  <div className="font-bold text-xs text-foreground">{prod.name}</div>
+                  <div className="text-[10px] text-muted-foreground font-medium">
                     {formatRupiah(price)} x {item.qty}
                   </div>
                 </div>
@@ -179,13 +179,13 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
                   <Button variant="outline" size="icon" onClick={() => updateCartQty(item.masterProductId, -1)} className="h-6 w-6">
                     <Minus className="w-3 h-3" />
                   </Button>
-                  <span className="text-xs font-mono font-bold text-slate-900 w-5 text-center">
+                  <span className="text-xs font-mono font-bold text-foreground w-5 text-center">
                     {item.qty}
                   </span>
-                  <Button variant="outline" size="icon" onClick={() => updateCartQty(item.masterProductId, 1)} disabled={item.qty >= inv.qtyAvailable} className="h-6 w-6">
+                  <Button variant="outline" size="icon" onClick={() => updateCartQty(item.masterProductId, 1)} disabled={item.qty >= inv.qtyAvailable} className="h-6 w-6 border-border">
                     <Plus className="w-3 h-3" />
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => removeFromCart(item.masterProductId)} className="h-6 w-6 text-slate-400 hover:text-rose-600 hover:bg-rose-50 ml-1">
+                  <Button variant="ghost" size="icon" onClick={() => removeFromCart(item.masterProductId)} className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10 ml-1">
                     <Trash2 className="w-3.5 h-3.5" />
                   </Button>
                 </div>
@@ -196,17 +196,17 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
       )}
 
       {/* Cart Summary & Checkout */}
-      <div className="pt-4 border-t border-slate-100 space-y-3">
+      <div className="pt-4 border-t border-border space-y-3">
         <div className="flex justify-between items-center text-xs">
-          <span className="text-slate-500 font-medium">Channel Transaksi:</span>
-          <span className="font-bold text-slate-900">
+          <span className="text-muted-foreground font-medium">Channel Transaksi:</span>
+          <span className="font-bold text-foreground">
             {channel} {channel === 'ONLINE' ? `(${platform})` : ''}
           </span>
         </div>
 
-        <div className="flex justify-between items-center text-sm font-bold text-slate-900">
+        <div className="flex justify-between items-center text-sm font-bold text-foreground">
           <span>TOTAL BAYAR</span>
-          <span className="text-base text-emerald-700 font-mono">{formatRupiah(calculateSubtotal())}</span>
+          <span className="text-base text-primary font-mono">{formatRupiah(calculateSubtotal())}</span>
         </div>
 
         <Button
@@ -224,10 +224,10 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
     <div className="space-y-6 pb-20 lg:pb-0">
       {/* Forced Channel Selection Modal */}
       <Dialog open={!isChannelSelected}>
-        <DialogContent className="max-w-md bg-white border-slate-200">
+        <DialogContent className="max-w-md bg-card border-border">
           <DialogHeader>
-            <DialogTitle className="text-center text-xl font-bold text-slate-900">Mulai Transaksi Kasir</DialogTitle>
-            <DialogDescription className="text-center text-slate-500 text-xs">
+            <DialogTitle className="text-center text-xl font-bold text-foreground">Mulai Transaksi Kasir</DialogTitle>
+            <DialogDescription className="text-center text-muted-foreground text-xs">
               Pilih channel penjualan terlebih dahulu untuk menentukan harga produk yang berlaku.
             </DialogDescription>
           </DialogHeader>
@@ -237,7 +237,7 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
               <Button
                 variant={channel === 'OFFLINE' ? 'default' : 'outline'}
                 onClick={() => setChannel('OFFLINE')}
-                className={`h-24 flex flex-col items-center justify-center gap-2 ${channel === 'OFFLINE' ? 'bg-slate-900 text-white' : 'hover:bg-slate-50'}`}
+                className={`h-24 flex flex-col items-center justify-center gap-2 ${channel === 'OFFLINE' ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20' : 'hover:bg-muted border-border'}`}
               >
                 <Store className="w-6 h-6" />
                 <span className="font-bold">Offline (Toko)</span>
@@ -245,7 +245,7 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
               <Button
                 variant={channel === 'ONLINE' ? 'default' : 'outline'}
                 onClick={() => setChannel('ONLINE')}
-                className={`h-24 flex flex-col items-center justify-center gap-2 ${channel === 'ONLINE' ? 'bg-slate-900 text-white' : 'hover:bg-slate-50'}`}
+                className={`h-24 flex flex-col items-center justify-center gap-2 ${channel === 'ONLINE' ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20' : 'hover:bg-muted border-border'}`}
               >
                 <Smartphone className="w-6 h-6" />
                 <span className="font-bold">Online</span>
@@ -253,14 +253,14 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
             </div>
 
             {channel === 'ONLINE' && (
-              <div className="p-4 bg-indigo-50 rounded-xl space-y-3 animate-fadeIn">
-                <Label className="text-xs font-bold text-indigo-900">Pilih Platform Online:</Label>
+              <div className="p-4 bg-primary/5 rounded-xl space-y-3 animate-fadeIn border border-primary/10">
+                <Label className="text-xs font-bold text-primary">Pilih Platform Online:</Label>
                 <div className="grid grid-cols-2 gap-2">
                   <Button
                     variant={platform === 'SHOPEE' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setPlatform('SHOPEE')}
-                    className={`h-9 text-xs ${platform === 'SHOPEE' ? 'bg-orange-500 hover:bg-orange-600 text-white border-orange-600' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'}`}
+                    className={`h-9 text-xs transition-colors ${platform === 'SHOPEE' ? 'bg-[#ee4d2d] hover:bg-[#d74226] text-white border-[#ee4d2d]' : 'bg-card border-border text-muted-foreground hover:bg-muted'}`}
                   >
                     Shopee
                   </Button>
@@ -268,7 +268,7 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
                     variant={platform === 'TIKTOK' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setPlatform('TIKTOK')}
-                    className={`h-9 text-xs ${platform === 'TIKTOK' ? 'bg-slate-900 hover:bg-slate-800 text-white border-slate-900' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'}`}
+                    className={`h-9 text-xs transition-colors ${platform === 'TIKTOK' ? 'bg-black hover:bg-gray-800 text-white border-black' : 'bg-card border-border text-muted-foreground hover:bg-muted'}`}
                   >
                     TikTok Shop
                   </Button>
@@ -287,18 +287,18 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
 
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            <ShoppingBag className="w-5 h-5 text-slate-700" />
+          <h2 className="text-xl font-bold text-foreground tracking-tight flex items-center gap-2">
+            <ShoppingBag className="w-5 h-5 text-primary" />
             POS Kasir Multichannel ({currentUser.branch?.name || 'Cabang Madiun'})
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5 font-medium">
-            Sesi penjualan aktif untuk: <strong className="text-slate-900">{channel} {channel === 'ONLINE' ? `(${platform})` : ''}</strong>
+          <p className="text-xs text-muted-foreground mt-0.5 font-medium">
+            Sesi penjualan aktif untuk: <strong className="text-foreground">{channel} {channel === 'ONLINE' ? `(${platform})` : ''}</strong>
           </p>
         </div>
 
         {isChannelSelected && (
-          <Button variant="outline" size="sm" onClick={() => setIsChannelSelected(false)} className="h-9 text-xs font-semibold bg-white shadow-sm">
-            <Settings2 className="w-4 h-4 mr-2 text-slate-500" />
+          <Button variant="outline" size="sm" onClick={() => setIsChannelSelected(false)} className="h-9 text-xs font-semibold bg-card border-border shadow-sm hover:bg-muted">
+            <Settings2 className="w-4 h-4 mr-2 text-muted-foreground" />
             Ubah Channel
           </Button>
         )}
@@ -307,10 +307,10 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
       {isChannelSelected && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn">
           <div className="lg:col-span-2 space-y-4">
-            <h3 className="text-sm font-bold text-slate-900">Katalog Live Product Cabang Madiun</h3>
+            <h3 className="text-sm font-bold text-foreground">Katalog Live Product Cabang Madiun</h3>
 
             {availableInventories.length === 0 ? (
-              <Card className="p-8 text-center text-xs text-slate-400">
+              <Card className="p-8 text-center text-xs text-muted-foreground border-border bg-card">
                 Belum ada stok barang yang tersedia untuk dijual. Lakukan validasi pengiriman dari HQ terlebih dahulu.
               </Card>
             ) : (
@@ -321,23 +321,23 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
                   const inCart = cart.find((c) => c.masterProductId === prod.id);
 
                   return (
-                    <Card key={inv.id} className="shadow-sm border-slate-200 hover:border-slate-300 transition-all flex flex-col justify-between">
+                    <Card key={inv.id} className="shadow-sm border-border hover:border-primary/40 transition-all flex flex-col justify-between bg-card group">
                       <CardContent className="p-4 flex flex-col justify-between h-full">
                         <div className="space-y-1">
                           <div className="flex items-start justify-between">
-                            <span className="text-[10px] font-mono text-slate-900 font-bold">{prod.sku}</span>
-                            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] px-1.5 py-0">
+                            <span className="text-[10px] font-mono text-foreground font-bold">{prod.sku}</span>
+                            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-[10px] px-1.5 py-0">
                               Stok: {inv.qtyAvailable}
                             </Badge>
                           </div>
-                          <h4 className="font-bold text-slate-900 text-sm">{prod.name}</h4>
-                          <p className="text-xs text-slate-500">Varian: {prod.variant}</p>
+                          <h4 className="font-bold text-foreground text-sm group-hover:text-primary transition-colors">{prod.name}</h4>
+                          <p className="text-xs text-muted-foreground">Varian: {prod.variant}</p>
                         </div>
 
-                        <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between">
+                        <div className="pt-3 mt-3 border-t border-border flex items-center justify-between">
                           <div>
-                            <span className="text-[10px] text-slate-400 font-medium block">Harga {channel}:</span>
-                            <span className="text-sm font-bold text-slate-900">{formatRupiah(activePrice)}</span>
+                            <span className="text-[10px] text-muted-foreground font-medium block">Harga {channel}:</span>
+                            <span className="text-sm font-bold text-foreground">{formatRupiah(activePrice)}</span>
                           </div>
 
                           <Button
@@ -359,7 +359,7 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
           </div>
 
           <div className="hidden lg:block h-fit sticky top-20">
-            <Card className="shadow-sm border-slate-200">
+            <Card className="shadow-lg shadow-primary/5 border-border bg-card">
               <CardContent className="p-5">
                 {cartContent}
               </CardContent>
@@ -372,24 +372,24 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
         <div className="lg:hidden fixed bottom-4 left-4 right-4 z-40">
           <Button
             onClick={() => setMobileCartOpen(true)}
-            className="w-full h-14 bg-slate-900 text-white rounded-2xl shadow-xl flex items-center justify-between font-bold text-xs px-5"
+            className="w-full h-14 bg-primary text-primary-foreground rounded-2xl shadow-xl shadow-primary/20 flex items-center justify-between font-bold text-xs px-5 hover:bg-primary/90 transition-all"
           >
             <div className="flex items-center space-x-2">
               <ShoppingCart className="w-4 h-4" />
               <span>Keranjang POS ({cartItemsCount} item)</span>
             </div>
-            <span className="font-mono text-sm text-emerald-400">{formatRupiah(calculateSubtotal())}</span>
+            <span className="font-mono text-sm">{formatRupiah(calculateSubtotal())}</span>
           </Button>
         </div>
       )}
 
       {mobileCartOpen && isChannelSelected && (
         <div className="fixed inset-0 z-50 flex items-end lg:hidden">
-          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={() => setMobileCartOpen(false)} />
-          <div className="relative w-full bg-white rounded-t-3xl p-6 shadow-2xl z-10 max-h-[85vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-4">
-              <span className="font-bold text-sm text-slate-900">Ringkasan Keranjang POS</span>
-              <button onClick={() => setMobileCartOpen(false)} className="p-1 text-slate-400 hover:text-slate-600">
+          <div className="fixed inset-0 bg-background/80 backdrop-blur-sm" onClick={() => setMobileCartOpen(false)} />
+          <div className="relative w-full bg-card rounded-t-3xl p-6 shadow-2xl z-10 max-h-[85vh] overflow-y-auto border-t border-border">
+            <div className="flex items-center justify-between pb-2 border-b border-border mb-4">
+              <span className="font-bold text-sm text-foreground">Ringkasan Keranjang POS</span>
+              <button onClick={() => setMobileCartOpen(false)} className="p-1 text-muted-foreground hover:text-foreground transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
