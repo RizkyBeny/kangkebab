@@ -186,7 +186,7 @@ export default function Home() {
   const pendingReceptionCount = shipments.filter((s) => s.status === 'DIKIRIM').length;
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex font-sans selection:bg-primary/20 relative overflow-hidden">
+    <div className="min-h-screen bg-background text-foreground flex font-sans selection:bg-primary/20 relative">
       {/* Subtle Neoxa backdrop glows for the dashboard */}
       <div className="absolute top-0 left-0 w-full h-[300px] bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
       {/* Toast Notification Banner */}
