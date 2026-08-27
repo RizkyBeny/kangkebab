@@ -1,0 +1,120 @@
+// Prisma Schema for Sistem Pencatatan Stock Opname Realtime Multichannel
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Branch {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  name      String
+  address   String?
+  createdAt DateTime @default(now())
+
+  users             User[]
+  shipments         Shipment[]
+  inventories       BranchInventory[]
+  salesTransactions SalesTransaction[]
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   // "HQ_ADMIN" | "CABANG_STAFF"
+  branchId  String?
+  branch    Branch?  @relation(fields: [branchId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model MasterProduct {
+  id                  String   @id @default(uuid())
+  sku                 String   @unique
+  name                String
+  variant             String
+  costPrice           Float
+  offlineSellingPrice Float
+  onlineSellingPrice  Float
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  shipmentItems         ShipmentItem[]
+  inventories           BranchInventory[]
+  salesTransactionItems SalesTransactionItem[]
+}
+
+model Shipment {
+  id             String         @id @default(uuid())
+  shipmentNumber String         @unique
+  branchId       String
+  branch         Branch         @relation(fields: [branchId], references: [id])
+  status         String         // "DIKIRIM" | "DITERIMA"
+  sentAt         DateTime       @default(now())
+  receivedAt     DateTime?
+  items          ShipmentItem[]
+}
+
+model ShipmentItem {
+  id              String        @id @default(uuid())
+  shipmentId      String
+  shipment        Shipment      @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  masterProductId String
+  masterProduct   MasterProduct @relation(fields: [masterProductId], references: [id])
+  costPrice       Float         @default(0)
+  qtySent         Int
+  qtyReceived     Int           @default(0)
+  qtyDamaged      Int           @default(0)
+}
+
+model BranchInventory {
+  id              String        @id @default(uuid())
+  branchId        String
+  branch          Branch        @relation(fields: [branchId], references: [id])
+  masterProductId String
+  masterProduct   MasterProduct @relation(fields: [masterProductId], references: [id])
+  qtyAvailable    Int           @default(0)
+  qtyDamaged      Int           @default(0)
+
+  @@unique([branchId, masterProductId])
+}
+
+model SalesTransaction {
+  id                String                 @id @default(uuid())
+  transactionNumber String                 @unique
+  branchId          String
+  branch            Branch                 @relation(fields: [branchId], references: [id])
+  channel           String                 // "ONLINE" | "OFFLINE"
+  platform          String?                // "SHOPEE" | "TIKTOK" | "NONE"
+  totalAmount       Float
+  totalCost         Float
+  createdAt         DateTime               @default(now())
+  items             SalesTransactionItem[]
+}
+
+model SalesTransactionItem {
+  id              String           @id @default(uuid())
+  transactionId   String
+  transaction     SalesTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  masterProductId String
+  masterProduct   MasterProduct    @relation(fields: [masterProductId], references: [id])
+  qty             Int
+  sellingPrice    Float
+  costPrice       Float
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String
+  userName  String
+  action    String
+  entity    String
+  entityId  String?
+  details   String
+  createdAt DateTime @default(now())
+}
