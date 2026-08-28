@@ -87,16 +87,21 @@ model BranchInventory {
 }
 
 model SalesTransaction {
-  id                String                 @id @default(uuid())
-  transactionNumber String                 @unique
-  branchId          String
-  branch            Branch                 @relation(fields: [branchId], references: [id])
-  channel           String                 // "ONLINE" | "OFFLINE"
-  platform          String?                // "SHOPEE" | "TIKTOK" | "NONE"
-  totalAmount       Float
-  totalCost         Float
-  createdAt         DateTime               @default(now())
-  items             SalesTransactionItem[]
+  id                   String                 @id @default(uuid())
+  transactionNumber    String                 @unique
+  branchId             String
+  branch               Branch                 @relation(fields: [branchId], references: [id])
+  channel              String                 // "ONLINE" | "OFFLINE"
+  platform             String?                // "SHOPEE" | "TIKTOK" | "NONE"
+  customerName         String                 @default("-")
+  customerPhone        String                 @default("-")
+  paymentStatus        String                 @default("PAID")
+  paymentMethod        String                 @default("CASH")
+  ecommerceActualPrice Float?
+  totalAmount          Float
+  totalCost            Float
+  createdAt            DateTime               @default(now())
+  items                SalesTransactionItem[]
 }
 
 model SalesTransactionItem {

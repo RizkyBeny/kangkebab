@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { MasterProduct, User } from '@/types';
 import { formatRupiah } from '@/constants';
-import { Plus, Search, Edit2, Trash2, Tag, ShieldCheck, Percent, Box } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Tag, ShieldCheck, Percent, Box, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -126,6 +126,28 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
       p.variant.toLowerCase().includes(search.toLowerCase())
   );
 
+  const handleExportCSV = () => {
+    const headers = ['SKU', 'Nama Produk', 'Varian', 'Modal (COGS)', 'Jual Offline', 'Jual Online'];
+    const rows = filteredProducts.map(p => [
+      p.sku,
+      `"${p.name}"`,
+      `"${p.variant}"`,
+      p.costPrice,
+      p.offlineSellingPrice,
+      p.onlineSellingPrice
+    ]);
+    
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `Katalog_Produk_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-6 md:space-y-8">
       {/* Header Section */}
@@ -139,10 +161,16 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
             Kelola katalog master produk, harga modal, serta penetapan harga jual Offline &amp; Online secara terpusat untuk seluruh cabang.
           </p>
         </div>
-        <Button onClick={openCreateModal} className="h-11 md:h-10 text-xs md:text-sm font-bold shadow-sm w-full sm:w-auto">
-          <Plus className="w-4 h-4 mr-2" />
-          Tambah Produk
-        </Button>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Button variant="outline" onClick={handleExportCSV} className="h-11 md:h-10 text-xs md:text-sm font-bold shadow-sm flex-1 sm:flex-none">
+            <Download className="w-4 h-4 mr-2" />
+            Export CSV
+          </Button>
+          <Button onClick={openCreateModal} className="h-11 md:h-10 text-xs md:text-sm font-bold shadow-sm flex-1 sm:flex-none">
+            <Plus className="w-4 h-4 mr-2" />
+            Tambah Produk
+          </Button>
+        </div>
       </div>
 
       {/* Search Bar */}

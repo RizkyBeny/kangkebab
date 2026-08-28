@@ -1,5 +1,6 @@
+export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
-import { getSalesTransactions, createSalesTransaction } from '@/services/posService';
+import { getSalesTransactions, createSalesTransaction, updateSalesTransaction } from '@/services/posService';
 
 export async function GET(request: Request) {
   try {
@@ -20,6 +21,18 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const transaction = await createSalesTransaction(body);
+    return NextResponse.json({ success: true, data: transaction });
+  } catch (error: any) {
+    return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+  }
+}
+
+export async function PUT(request: Request) {
+  try {
+    const body = await request.json();
+    const { id, ...updateData } = body;
+    if (!id) throw new Error('Transaction ID is required');
+    const transaction = await updateSalesTransaction(id, updateData);
     return NextResponse.json({ success: true, data: transaction });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 400 });

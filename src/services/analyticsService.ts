@@ -99,6 +99,52 @@ export async function getConsolidatedFinancials(filters?: {
     };
   });
 
+  // Product Performance Breakdown
+  const productMap = new Map<string, {
+    masterProductId: string;
+    sku: string;
+    name: string;
+    variant: string;
+    qtySold: number;
+    remainingStock: number;
+  }>();
+
+  // Aggregate sales
+  for (const tx of transactions) {
+    for (const item of tx.items) {
+      const pid = item.masterProductId;
+      if (!productMap.has(pid)) {
+        productMap.set(pid, {
+          masterProductId: pid,
+          sku: item.masterProduct.sku,
+          name: item.masterProduct.name,
+          variant: item.masterProduct.variant,
+          qtySold: 0,
+          remainingStock: 0,
+        });
+      }
+      productMap.get(pid)!.qtySold += item.qty;
+    }
+  }
+
+  // Aggregate stocks
+  for (const inv of inventories) {
+    const pid = inv.masterProductId;
+    if (!productMap.has(pid)) {
+      productMap.set(pid, {
+        masterProductId: pid,
+        sku: inv.masterProduct.sku,
+        name: inv.masterProduct.name,
+        variant: inv.masterProduct.variant,
+        qtySold: 0,
+        remainingStock: 0,
+      });
+    }
+    productMap.get(pid)!.remainingStock += inv.qtyAvailable;
+  }
+
+  const productPerformance = Array.from(productMap.values()).sort((a, b) => b.qtySold - a.qtySold);
+
   return {
     totalRevenue,
     totalCostOfGoods,
@@ -110,5 +156,6 @@ export async function getConsolidatedFinancials(filters?: {
     onlineRevenue,
     offlineRevenue,
     branchPerformance,
+    productPerformance,
   };
 }

@@ -5,6 +5,7 @@ import { SalesTransaction, Branch, User } from '@/types';
 import { formatRupiah, formatDate } from '@/constants';
 import { History, Download, Filter, Eye, Store, Smartphone } from 'lucide-react';
 import { ReceiptModal } from './ReceiptModal';
+import { EditTransactionModal } from './EditTransactionModal';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -38,14 +39,67 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
   const [selectedChannel, setSelectedChannel] = useState<string>('ALL');
   const [selectedBranchId, setSelectedBranchId] = useState<string>('ALL');
   const [activeReceipt, setActiveReceipt] = useState<SalesTransaction | null>(null);
+  const [editingTransaction, setEditingTransaction] = useState<SalesTransaction | null>(null);
 
-  const filteredTransactions = transactions.filter((t) => {
+  const [localTransactions, setLocalTransactions] = useState<SalesTransaction[]>(transactions);
+
+  // Sync with props if transactions change from outside (e.g. initial load)
+  React.useEffect(() => {
+    setLocalTransactions(transactions);
+  }, [transactions]);
+
+  const filteredTransactions = localTransactions.filter((t) => {
     if (selectedChannel !== 'ALL' && t.channel !== selectedChannel) return false;
     if (currentUser.role === 'CABANG_STAFF' && t.branchId !== currentUser.branchId) return false;
     if (currentUser.role === 'HQ_ADMIN' && selectedBranchId !== 'ALL' && t.branchId !== selectedBranchId)
       return false;
     return true;
   });
+
+  const handleExportCSV = () => {
+    const headers = [
+      'No. Struk',
+      'Waktu',
+      'Cabang',
+      'Channel',
+      'Platform',
+      'Customer',
+      'No. HP',
+      'Metode Pembayaran',
+      'Status Pembayaran',
+      'Total Omzet (Rp)',
+      'Total Modal (Rp)',
+      'Item Terjual'
+    ];
+    
+    const rows = filteredTransactions.map(t => {
+      const itemsStr = t.items.map(i => `${i.masterProduct.name} (${i.qty}x)`).join('; ');
+      return [
+        t.transactionNumber,
+        formatDate(t.createdAt),
+        `"${t.branch.name}"`,
+        t.channel,
+        t.platform || '-',
+        `"${t.customerName || '-'}"`,
+        `"${t.customerPhone || '-'}"`,
+        t.paymentMethod || '-',
+        t.paymentStatus || '-',
+        t.totalAmount,
+        t.totalCost,
+        `"${itemsStr}"`
+      ];
+    });
+
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `Riwayat_Transaksi_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <div className="space-y-6 md:space-y-8">
@@ -92,6 +146,11 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
               </SelectContent>
             </Select>
           </div>
+          
+          <Button variant="outline" onClick={handleExportCSV} className="h-10 md:h-9 text-xs font-bold bg-white shadow-sm border-slate-200">
+            <Download className="w-4 h-4 mr-2" />
+            Export CSV
+          </Button>
         </div>
       </div>
 
@@ -105,13 +164,14 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
               <TableHead className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Channel</TableHead>
               <TableHead className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Produk Terjual</TableHead>
               <TableHead className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Omzet</TableHead>
-              <TableHead className="text-[11px] font-bold text-slate-500 uppercase tracking-wider text-right">Struk PDF</TableHead>
+              <TableHead className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Pembayaran</TableHead>
+              <TableHead className="text-[11px] font-bold text-slate-500 uppercase tracking-wider text-right">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredTransactions.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-32 text-center text-slate-400 text-sm">
+                <TableCell colSpan={7} className="h-32 text-center text-slate-400 text-sm">
                   Tidak ada transaksi yang cocok dengan filter.
                 </TableCell>
               </TableRow>
@@ -148,16 +208,33 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
                   <TableCell className="font-bold text-slate-900 font-mono text-sm">
                     {formatRupiah(t.totalAmount)}
                   </TableCell>
+                  <TableCell>
+                    <div className="text-xs font-bold text-slate-700">{t.paymentMethod || '-'}</div>
+                    <Badge variant="outline" className={`mt-1 text-[10px] ${t.paymentStatus === 'PAID' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                      {t.paymentStatus || '-'}
+                    </Badge>
+                  </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setActiveReceipt(t)}
-                      className="h-8 text-xs font-bold bg-white"
-                    >
-                      <Download className="w-3.5 h-3.5 mr-2 text-slate-600" />
-                      Struk
-                    </Button>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setEditingTransaction(t)}
+                        className="h-8 text-xs font-bold bg-white px-2"
+                        title="Edit Transaksi"
+                      >
+                        ✏️ Edit
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setActiveReceipt(t)}
+                        className="h-8 text-xs font-bold bg-white px-2"
+                        title="Unduh Struk PDF"
+                      >
+                        <Download className="w-3.5 h-3.5 text-slate-600" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
@@ -213,11 +290,25 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
                     <span className="text-slate-600 font-bold">Total Omzet</span>
                     <span className="font-mono font-bold text-slate-900">{formatRupiah(t.totalAmount)}</span>
                   </div>
+                  <div className="pt-2 border-t border-slate-200/60 flex justify-between items-center text-xs">
+                    <span className="text-slate-600 font-medium">Pembayaran</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-slate-700">{t.paymentMethod || '-'}</span>
+                      <Badge variant="outline" className={`text-[9px] px-1 py-0 h-4 ${t.paymentStatus === 'PAID' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                        {t.paymentStatus || '-'}
+                      </Badge>
+                    </div>
+                  </div>
                 </div>
 
-                <Button variant="outline" className="w-full h-10 text-xs font-bold" onClick={() => setActiveReceipt(t)}>
-                  <Eye className="w-4 h-4 mr-2" /> Lihat Struk
-                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" className="flex-1 h-10 text-xs font-bold" onClick={() => setEditingTransaction(t)}>
+                    ✏️ Edit
+                  </Button>
+                  <Button variant="outline" className="flex-1 h-10 text-xs font-bold" onClick={() => setActiveReceipt(t)}>
+                    <Eye className="w-4 h-4 mr-2" /> Struk
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))
@@ -225,6 +316,17 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
       </div>
 
       {activeReceipt && <ReceiptModal transaction={activeReceipt} onClose={() => setActiveReceipt(null)} />}
+      
+      {editingTransaction && (
+        <EditTransactionModal 
+          transaction={editingTransaction} 
+          onClose={() => setEditingTransaction(null)}
+          onSuccess={(updatedTx) => {
+            setLocalTransactions(prev => prev.map(t => t.id === updatedTx.id ? updatedTx : t));
+            setEditingTransaction(null);
+          }}
+        />
+      )}
     </div>
   );
 };

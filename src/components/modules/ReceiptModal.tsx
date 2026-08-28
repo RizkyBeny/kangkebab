@@ -15,34 +15,61 @@ interface ReceiptModalProps {
 }
 
 export const ReceiptModal: React.FC<ReceiptModalProps> = ({ transaction, onClose }) => {
-  const downloadPDFReceipt = () => {
+  const downloadPDFReceipt = async () => {
     const doc = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
-      format: [80, 160], // Thermal receipt paper format
+      format: [80, 200], // Increased length for additional fields and logo
     });
+
+    let currentY = 10;
+
+    try {
+      const img = new Image();
+      img.src = '/logo.jpg';
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+      });
+      doc.addImage(img, 'JPEG', 30, currentY, 20, 20);
+      currentY += 25;
+    } catch (e) {
+      console.warn('Failed to load logo', e);
+    }
 
     // Title & Header
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12);
-    doc.text('KANGKEBAB POS', 40, 10, { align: 'center' });
+    doc.text('KANGKEBAB POS', 40, currentY, { align: 'center' });
+    currentY += 5;
 
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
-    doc.text(transaction.branch.name, 40, 15, { align: 'center' });
+    doc.text(transaction.branch.name, 40, currentY, { align: 'center' });
+    currentY += 4;
     if (transaction.branch.address) {
-      doc.text(transaction.branch.address, 40, 19, { align: 'center' });
+      doc.text(transaction.branch.address, 40, currentY, { align: 'center' });
+      currentY += 4;
     }
 
-    doc.line(5, 23, 75, 23);
+    doc.line(5, currentY, 75, currentY);
+    currentY += 4;
 
     // Transaction Details
     doc.setFontSize(7);
-    doc.text(`No. Struk: ${transaction.transactionNumber}`, 5, 27);
-    doc.text(`Tanggal  : ${formatDate(transaction.createdAt)}`, 5, 31);
-    doc.text(`Channel  : ${transaction.channel} (${transaction.platform || 'OFFLINE'})`, 5, 35);
+    doc.text(`No. Struk: ${transaction.transactionNumber}`, 5, currentY);
+    currentY += 4;
+    doc.text(`Tanggal  : ${formatDate(transaction.createdAt)}`, 5, currentY);
+    currentY += 4;
+    doc.text(`Channel  : ${transaction.channel} (${transaction.platform || 'OFFLINE'})`, 5, currentY);
+    currentY += 4;
+    doc.text(`Customer : ${transaction.customerName || '-'} (${transaction.customerPhone || '-'})`, 5, currentY);
+    currentY += 4;
+    doc.text(`Payment  : ${transaction.paymentMethod || '-'} (${transaction.paymentStatus || '-'})`, 5, currentY);
+    currentY += 3;
 
-    doc.line(5, 38, 75, 38);
+    doc.line(5, currentY, 75, currentY);
+    currentY += 3;
 
     // Table of items
     const tableBody = transaction.items.map((item) => [
@@ -52,7 +79,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ transaction, onClose
     ]);
 
     autoTable(doc, {
-      startY: 41,
+      startY: currentY,
       margin: { left: 5, right: 5 },
       body: tableBody,
       styles: { fontSize: 7, cellPadding: 1 },
@@ -116,6 +143,14 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ transaction, onClose
             <div className="flex justify-between">
               <span>Waktu:</span>
               <span className="font-bold text-slate-900">{formatDate(transaction.createdAt)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Customer:</span>
+              <span className="font-bold text-slate-900">{transaction.customerName || '-'} ({transaction.customerPhone || '-'})</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Pembayaran:</span>
+              <span className="font-bold text-slate-900">{transaction.paymentMethod || '-'} - {transaction.paymentStatus || '-'}</span>
             </div>
           </div>
 

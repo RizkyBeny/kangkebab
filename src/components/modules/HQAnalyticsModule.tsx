@@ -249,6 +249,76 @@ export const HQAnalyticsModule: React.FC<HQAnalyticsModuleProps> = ({ analytics,
           </div>
         </div>
       )}
+
+      {/* Product Performance and Stock */}
+      <div className="space-y-4 pt-4 border-t border-slate-200">
+        <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+          <ShoppingBag className="w-5 h-5 text-slate-700" />
+          Performa &amp; Sisa Stok Produk
+        </h3>
+        
+        {/* Desktop Table */}
+        <Card className="shadow-sm border-slate-200 hidden md:block rounded-xl overflow-hidden">
+          <Table>
+            <TableHeader className="bg-slate-50/80 border-b border-slate-100">
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="text-[11px] font-bold text-slate-500 uppercase tracking-wider py-4">SKU</TableHead>
+                <TableHead className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Produk &amp; Varian</TableHead>
+                <TableHead className="text-[11px] font-bold text-slate-500 uppercase tracking-wider text-right">Terjual (Qty)</TableHead>
+                <TableHead className="text-[11px] font-bold text-slate-500 uppercase tracking-wider text-right">Sisa Stok Tersedia</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {analytics.productPerformance.map((p) => (
+                <TableRow key={p.masterProductId} className="group transition-colors hover:bg-slate-50/50">
+                  <TableCell className="font-mono font-medium text-slate-600 text-xs py-4">{p.sku}</TableCell>
+                  <TableCell>
+                    <div className="font-bold text-slate-900 text-sm">{p.name}</div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">{p.variant}</div>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <span className="font-bold text-emerald-600 text-sm">{p.qtySold}</span> <span className="text-xs text-slate-500">unit</span>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <span className={`font-bold text-sm ${p.remainingStock > 0 ? 'text-indigo-600' : 'text-rose-600'}`}>
+                      {p.remainingStock}
+                    </span> <span className="text-xs text-slate-500">unit</span>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+
+        {/* Mobile Cards */}
+        <div className="md:hidden space-y-3">
+          {analytics.productPerformance.map((p) => (
+            <Card key={p.masterProductId} className="border-slate-200 shadow-sm rounded-xl">
+              <CardContent className="p-4 space-y-3">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <div className="font-bold text-slate-900 text-sm">{p.name}</div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">{p.variant}</div>
+                    <div className="text-[10px] text-slate-400 font-mono mt-1">SKU: {p.sku}</div>
+                  </div>
+                </div>
+                <div className="bg-slate-50 rounded-lg p-3 grid grid-cols-2 gap-2 border border-slate-100">
+                  <div className="space-y-1">
+                    <div className="text-[10px] font-semibold text-slate-500 uppercase">Terjual</div>
+                    <div className="font-bold text-emerald-600 text-sm">{p.qtySold} <span className="text-[10px] font-normal text-slate-500">unit</span></div>
+                  </div>
+                  <div className="space-y-1 text-right">
+                    <div className="text-[10px] font-semibold text-slate-500 uppercase">Sisa Stok</div>
+                    <div className={`font-bold text-sm ${p.remainingStock > 0 ? 'text-indigo-600' : 'text-rose-600'}`}>
+                      {p.remainingStock} <span className="text-[10px] font-normal text-slate-500">unit</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
     </div>
   );
 };

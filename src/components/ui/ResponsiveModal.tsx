@@ -37,7 +37,7 @@ export const ResponsiveModal: React.FC<ResponsiveModalProps> = ({
     if (!open) return null;
 
     return (
-      <div className="fixed inset-0 z-50 flex items-end sm:hidden">
+      <div className="fixed inset-0 z-50 flex items-end md:hidden">
         <div 
           className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity" 
           onClick={() => onOpenChange(false)} 

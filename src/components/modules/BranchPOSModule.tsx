@@ -18,6 +18,9 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Pencil, Check } from 'lucide-react';
 
 interface BranchPOSModuleProps {
   inventories: BranchInventory[];
@@ -34,17 +37,36 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
   const [channel, setChannel] = useState<SalesChannel>('OFFLINE');
   const [platform, setPlatform] = useState<OnlinePlatform>('SHOPEE');
   
-  const [cart, setCart] = useState<{ masterProductId: string; qty: number }[]>([]);
+  const [cart, setCart] = useState<{ masterProductId: string; qty: number; customPrice?: number }[]>([]);
   const [completedTx, setCompletedTx] = useState<SalesTransaction | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
+
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [paymentStatus, setPaymentStatus] = useState('PAID');
+  const [paymentMethod, setPaymentMethod] = useState('CASH');
+  const [ecommerceActualPrice, setEcommerceActualPrice] = useState<number | ''>('');
+  
+  const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
+  const [editingPriceValue, setEditingPriceValue] = useState<string>('');
 
   const availableInventories = inventories.filter((inv) => inv.qtyAvailable > 0);
 
   const handleConfirmChannel = () => {
     setIsChannelSelected(true);
     setCart([]); // Reset cart when channel changes
+    setCustomerName('');
+    setCustomerPhone('');
+    setEcommerceActualPrice('');
+    setPaymentMethod(channel === 'ONLINE' ? 'ECOMMERCE' : 'CASH');
+  };
+
+  const saveCustomPrice = (masterProductId: string) => {
+    const val = Number(editingPriceValue);
+    setCart(cart.map(c => c.masterProductId === masterProductId ? { ...c, customPrice: isNaN(val) ? undefined : val } : c));
+    setEditingPriceId(null);
   };
 
   const addToCart = (masterProductId: string) => {
@@ -87,7 +109,7 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
     return cart.reduce((sum, item) => {
       const inv = inventories.find((i) => i.masterProductId === item.masterProductId);
       if (!inv) return sum;
-      const price = channel === 'ONLINE' ? inv.masterProduct.onlineSellingPrice : inv.masterProduct.offlineSellingPrice;
+      const price = item.customPrice ?? (channel === 'ONLINE' ? inv.masterProduct.onlineSellingPrice : inv.masterProduct.offlineSellingPrice);
       return sum + price * item.qty;
     }, 0);
   };
@@ -96,6 +118,11 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
     if (cart.length === 0) return;
     if (!currentUser.branchId) {
       setErrorMsg('User tidak terhubung ke cabang manapun');
+      return;
+    }
+
+    if (!customerName || !customerPhone) {
+      setErrorMsg('Nama dan No. Handphone customer wajib diisi');
       return;
     }
 
@@ -113,6 +140,11 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
           items: cart,
           userId: currentUser.id,
           userName: currentUser.name,
+          customerName,
+          customerPhone,
+          paymentStatus,
+          paymentMethod: channel === 'ONLINE' ? 'ECOMMERCE' : paymentMethod,
+          ecommerceActualPrice: ecommerceActualPrice === '' ? null : Number(ecommerceActualPrice)
         }),
       });
 
@@ -164,14 +196,32 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
             const inv = inventories.find((i) => i.masterProductId === item.masterProductId);
             if (!inv) return null;
             const prod = inv.masterProduct;
-            const price = channel === 'ONLINE' ? prod.onlineSellingPrice : prod.offlineSellingPrice;
+            const price = item.customPrice ?? (channel === 'ONLINE' ? prod.onlineSellingPrice : prod.offlineSellingPrice);
 
             return (
               <div key={item.masterProductId} className="pt-2.5 flex items-center justify-between">
                 <div>
                   <div className="font-bold text-xs text-foreground">{prod.name}</div>
-                  <div className="text-[10px] text-muted-foreground font-medium">
-                    {formatRupiah(price)} x {item.qty}
+                  <div className="text-[10px] text-muted-foreground font-medium flex items-center gap-2 mt-0.5">
+                    {editingPriceId === item.masterProductId ? (
+                      <div className="flex items-center gap-1">
+                        <Input 
+                          type="number" 
+                          value={editingPriceValue} 
+                          onChange={(e) => setEditingPriceValue(e.target.value)} 
+                          className="h-6 w-20 text-[10px] px-1" 
+                          autoFocus
+                        />
+                        <Button size="icon" variant="ghost" onClick={() => saveCustomPrice(item.masterProductId)} className="h-5 w-5 bg-primary/10 text-primary hover:bg-primary/20 rounded">
+                           <Check className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1 cursor-pointer group" onClick={() => { setEditingPriceId(item.masterProductId); setEditingPriceValue(String(price)); }}>
+                        <span>{formatRupiah(price)} x {item.qty}</span>
+                        <Pencil className="w-2.5 h-2.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -197,6 +247,46 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
 
       {/* Cart Summary & Checkout */}
       <div className="pt-4 border-t border-border space-y-3">
+        <div className="space-y-2 pb-2 border-b border-border">
+           <Label className="text-[11px] font-bold">Nama Customer <span className="text-destructive">*</span></Label>
+           <Input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Nama" className="h-8 text-xs" />
+           <Label className="text-[11px] font-bold">No. Handphone <span className="text-destructive">*</span></Label>
+           <Input value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="0812..." className="h-8 text-xs" />
+        </div>
+
+        {channel === 'ONLINE' && (
+          <div className="space-y-2 pb-2 border-b border-border">
+            <Label className="text-[11px] font-bold">Harga Actual Ecommerce (Opsional)</Label>
+            <Input type="number" value={ecommerceActualPrice} onChange={e => setEcommerceActualPrice(e.target.value === '' ? '' : Number(e.target.value))} placeholder="0" className="h-8 text-xs" />
+          </div>
+        )}
+
+        {channel === 'OFFLINE' && (
+          <div className="grid grid-cols-2 gap-2 pb-2 border-b border-border">
+            <div className="space-y-1">
+              <Label className="text-[11px] font-bold">Metode</Label>
+              <Select value={paymentMethod} onValueChange={(val) => setPaymentMethod(val || 'CASH')}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CASH">CASH</SelectItem>
+                  <SelectItem value="TRANSFER">TRANSFER</SelectItem>
+                  <SelectItem value="QRIS">QRIS</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[11px] font-bold">Status</Label>
+              <Select value={paymentStatus} onValueChange={(val) => setPaymentStatus(val || 'PAID')}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PAID">LUNAS</SelectItem>
+                  <SelectItem value="PENDING">PENDING</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
+
         <div className="flex justify-between items-center text-xs">
           <span className="text-muted-foreground font-medium">Channel Transaksi:</span>
           <span className="font-bold text-foreground">

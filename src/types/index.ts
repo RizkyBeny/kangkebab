@@ -84,6 +84,11 @@ export interface SalesTransaction {
   branch: Branch;
   channel: SalesChannel;
   platform?: OnlinePlatform | null;
+  customerName: string;
+  customerPhone: string;
+  paymentStatus: string;
+  paymentMethod: string;
+  ecommerceActualPrice?: number | null;
   totalAmount: number;
   totalCost: number;
   createdAt: Date | string;
@@ -109,5 +114,13 @@ export interface ConsolidatedFinancials {
     margin: number;
     transactionCount: number;
     damagedCount: number;
+  }[];
+  productPerformance: {
+    masterProductId: string;
+    sku: string;
+    name: string;
+    variant: string;
+    qtySold: number;
+    remainingStock: number;
   }[];
 }

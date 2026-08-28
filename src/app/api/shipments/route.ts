@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { getShipments, createShipment, confirmShipmentReception, updateShipment } from '@/services/shipmentService';
 

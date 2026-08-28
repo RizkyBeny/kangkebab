@@ -7,9 +7,14 @@ export async function createSalesTransaction(data: {
   branchId: string;
   channel: SalesChannel;
   platform?: OnlinePlatform | null;
-  items: { masterProductId: string; qty: number }[];
+  items: { masterProductId: string; qty: number; customPrice?: number }[];
   userId: string;
   userName: string;
+  customerName: string;
+  customerPhone: string;
+  paymentStatus: string;
+  paymentMethod: string;
+  ecommerceActualPrice?: number | null;
 }): Promise<SalesTransaction> {
   if (data.items.length === 0) {
     throw new Error('Keranjang belanja tidak boleh kosong');
@@ -59,8 +64,8 @@ export async function createSalesTransaction(data: {
     }
 
     const prod = inventory.masterProduct;
-    // Auto-lock price based on channel
-    const sellingPrice = data.channel === 'ONLINE' ? prod.onlineSellingPrice : prod.offlineSellingPrice;
+    // Auto-lock price based on channel, or override with custom price if provided
+    const sellingPrice = data.items.find(i => i.masterProductId === cartItem.masterProductId)?.customPrice ?? (data.channel === 'ONLINE' ? prod.onlineSellingPrice : prod.offlineSellingPrice);
     const itemSubtotal = sellingPrice * cartItem.qty;
     const itemCostTotal = prod.costPrice * cartItem.qty;
 
@@ -93,6 +98,11 @@ export async function createSalesTransaction(data: {
         branchId: data.branchId,
         channel: data.channel,
         platform: data.channel === 'ONLINE' ? data.platform : 'NONE',
+        customerName: data.customerName,
+        customerPhone: data.customerPhone,
+        paymentStatus: data.paymentStatus,
+        paymentMethod: data.paymentMethod,
+        ecommerceActualPrice: data.ecommerceActualPrice || null,
         totalAmount: grandTotalAmount,
         totalCost: grandTotalCost,
         items: {
@@ -183,4 +193,97 @@ export async function getSalesTransactions(filters?: {
   });
 
   return transactions as unknown as SalesTransaction[];
+}
+
+export async function updateSalesTransaction(
+  id: string,
+  data: {
+    ecommerceActualPrice?: number | null;
+    paymentMethod?: string;
+    paymentStatus?: string;
+    items?: { id: string; qty: number; sellingPrice: number }[];
+  }
+): Promise<SalesTransaction> {
+  const existingTx = await prisma.salesTransaction.findUnique({
+    where: { id },
+    include: { items: true },
+  });
+
+  if (!existingTx) throw new Error('Transaksi tidak ditemukan');
+
+  const operations: any[] = [];
+  let newTotalAmount = existingTx.totalAmount;
+  let newTotalCost = existingTx.totalCost;
+
+  if (data.items && data.items.length > 0) {
+    // We update each item's qty and sellingPrice.
+    // NOTE: If qty changes, we should ideally adjust inventory, but since this is history editing,
+    // we assume the user only fixes mistakes or edits prices.
+    // For simplicity, we just update the transaction item values and recalculate totals.
+    let calcTotalAmount = 0;
+    
+    for (const item of data.items) {
+      const existingItem = existingTx.items.find(i => i.id === item.id);
+      if (existingItem) {
+        calcTotalAmount += item.qty * item.sellingPrice;
+        
+        operations.push(
+          prisma.salesTransactionItem.update({
+            where: { id: item.id },
+            data: {
+              qty: item.qty,
+              sellingPrice: item.sellingPrice,
+            }
+          })
+        );
+      }
+    }
+    newTotalAmount = calcTotalAmount;
+  }
+
+  // If ecommerceActualPrice is provided, it completely overrides the totalAmount
+  if (data.ecommerceActualPrice !== undefined && data.ecommerceActualPrice !== null) {
+    newTotalAmount = data.ecommerceActualPrice;
+  }
+
+  const updateData: any = {
+    totalAmount: newTotalAmount,
+  };
+
+  if (data.ecommerceActualPrice !== undefined) {
+    updateData.ecommerceActualPrice = data.ecommerceActualPrice;
+  }
+  if (data.paymentMethod !== undefined) {
+    updateData.paymentMethod = data.paymentMethod;
+  }
+  if (data.paymentStatus !== undefined) {
+    updateData.paymentStatus = data.paymentStatus;
+  }
+
+  operations.push(
+    prisma.salesTransaction.update({
+      where: { id },
+      data: updateData,
+      include: {
+        branch: true,
+        items: {
+          include: {
+            masterProduct: true,
+          },
+        },
+      },
+    })
+  );
+
+  const results = await prisma.$transaction(operations);
+  const updatedTx = results[results.length - 1];
+
+  sseBroadcaster.emit('SALES_UPDATED', {
+    type: 'TRANSACTION_UPDATED',
+    branchId: updatedTx.branchId,
+    transactionNumber: updatedTx.transactionNumber,
+    timestamp: new Date().toISOString(),
+  });
+
+  return updatedTx as unknown as SalesTransaction;
 }
