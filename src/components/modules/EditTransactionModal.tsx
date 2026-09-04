@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { SalesTransaction } from '@/types';
-import { formatRupiah } from '@/constants';
 import { Check, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ResponsiveModal } from '@/components/ui/ResponsiveModal';
@@ -68,8 +67,8 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({ tran
       if (!data.success) throw new Error(data.error);
 
       onSuccess(data.data);
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Gagal menyimpan perubahan');
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : 'Gagal menyimpan perubahan');
     } finally {
       setLoading(false);
     }
@@ -90,15 +89,15 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({ tran
 
         <div className="space-y-4 max-h-[60vh] overflow-y-auto px-1 pb-4">
           <div className="space-y-2">
-            <Label className="text-xs font-bold text-slate-700">Item Produk</Label>
-            <div className="border border-slate-200 rounded-lg p-3 space-y-3 bg-slate-50">
+            <Label className="text-xs font-bold text-foreground/80">Item Produk</Label>
+            <div className="border border-border rounded-lg p-3 space-y-3 bg-muted/50">
               {items.map(item => (
                 <div key={item.id} className="grid grid-cols-12 gap-2 items-center">
                   <div className="col-span-12 md:col-span-5 text-xs font-medium truncate" title={item.name}>
                     {item.name}
                   </div>
                   <div className="col-span-4 md:col-span-2">
-                    <Label className="text-[10px] text-slate-500 mb-1 block">Qty</Label>
+                    <Label className="text-[10px] text-muted-foreground mb-1 block">Qty</Label>
                     <Input 
                       type="number" 
                       value={item.qty} 
@@ -107,7 +106,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({ tran
                     />
                   </div>
                   <div className="col-span-8 md:col-span-5">
-                    <Label className="text-[10px] text-slate-500 mb-1 block">Harga Jual (Rp)</Label>
+                    <Label className="text-[10px] text-muted-foreground mb-1 block">Harga Jual (Rp)</Label>
                     <Input 
                       type="number" 
                       value={item.sellingPrice} 
@@ -121,7 +120,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({ tran
           </div>
 
           <div className="space-y-2">
-            <Label className="text-xs font-bold text-slate-700">Overwrite Total Omzet (Harga Aktual Ecommerce)</Label>
+            <Label className="text-xs font-bold text-foreground/80">Overwrite Total Omzet (Harga Aktual Ecommerce)</Label>
             <Input 
               type="number" 
               placeholder="Kosongkan jika ingin mengikuti total per item" 
@@ -129,12 +128,12 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({ tran
               onChange={e => setEcommerceActualPrice(e.target.value)} 
               className="h-9 text-xs" 
             />
-            <p className="text-[10px] text-slate-500">Jika diisi, nilai ini akan menggantikan Total Omzet struk ini.</p>
+            <p className="text-[10px] text-muted-foreground">Jika diisi, nilai ini akan menggantikan Total Omzet struk ini.</p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label className="text-xs font-bold text-slate-700">Metode Pembayaran</Label>
+              <Label className="text-xs font-bold text-foreground/80">Metode Pembayaran</Label>
               <Select value={paymentMethod} onValueChange={(val) => setPaymentMethod(val || 'CASH')}>
                 <SelectTrigger className="h-9 text-xs">
                   <SelectValue />
@@ -148,7 +147,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({ tran
               </Select>
             </div>
             <div className="space-y-2">
-              <Label className="text-xs font-bold text-slate-700">Status Pembayaran</Label>
+              <Label className="text-xs font-bold text-foreground/80">Status Pembayaran</Label>
               <Select value={paymentStatus} onValueChange={(val) => setPaymentStatus(val || 'PAID')}>
                 <SelectTrigger className="h-9 text-xs">
                   <SelectValue />
@@ -162,7 +161,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({ tran
           </div>
         </div>
 
-        <div className="pt-4 border-t border-slate-200 flex justify-end gap-3">
+        <div className="pt-4 border-t border-border flex justify-end gap-3">
           <Button variant="outline" onClick={onClose} className="h-9 text-xs font-semibold px-4">
             Batal
           </Button>

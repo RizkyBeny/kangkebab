@@ -19,6 +19,19 @@ export const SHIPMENT_STATUS = {
   DITERIMA: 'DITERIMA',
 } as const;
 
+import { TabType } from '@/types';
+
+export const TAB_LABELS: Record<TabType, string> = {
+  analytics: 'Konsolidasi',
+  master: 'Master Data & Pricing',
+  dispatch: 'Pengiriman ke Cabang',
+  reception: 'Terima & Validasi Barang',
+  pos: 'POS Kasir Multichannel',
+  live_products: 'Katalog Live Product',
+  inventory_global: 'Stok Opname Cabang',
+  history: 'Riwayat Transaksi',
+};
+
 export function formatRupiah(amount: number): string {
   return new Intl.NumberFormat('id-ID', {
     style: 'currency',

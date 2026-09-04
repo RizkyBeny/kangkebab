@@ -3,11 +3,10 @@
 import React, { useState } from 'react';
 import { MasterProduct, User } from '@/types';
 import { formatRupiah } from '@/constants';
-import { Plus, Search, Edit2, Trash2, Tag, ShieldCheck, Percent, Box, Download } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Tag, ShieldCheck, Percent, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   Table,
@@ -19,6 +18,7 @@ import {
 } from '@/components/ui/table';
 import { ResponsiveModal } from '@/components/ui/ResponsiveModal';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { StoreIcon, PhoneIcon } from '@/components/shared/icons';
 
 interface HQMasterModuleProps {
   products: MasterProduct[];
@@ -98,8 +98,8 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
 
       setShowModal(false);
       onRefresh();
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Gagal menyimpan produk');
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : 'Gagal menyimpan produk');
     } finally {
       setLoading(false);
     }
@@ -114,8 +114,8 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
       onRefresh();
-    } catch (err: any) {
-      alert(err.message || 'Gagal menghapus produk');
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Gagal menghapus produk');
     }
   };
 
@@ -202,7 +202,7 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
           <TableBody>
             {filteredProducts.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-32 text-center text-slate-400 text-sm">
+                <TableCell colSpan={7} className="h-32 text-center text-muted-foreground text-sm">
                   Belum ada master produk yang tersimpan.
                 </TableCell>
               </TableRow>
@@ -253,7 +253,7 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
       {/* Mobile Stacked Card View */}
       <div className="md:hidden space-y-3">
         {filteredProducts.length === 0 ? (
-          <div className="p-8 text-center text-slate-400 text-sm bg-white rounded-xl border border-slate-200">
+          <div className="p-8 text-center text-muted-foreground text-sm bg-card rounded-xl border border-border">
             Belum ada produk.
           </div>
         ) : (
@@ -261,12 +261,12 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
             const offMargin = p.offlineSellingPrice > 0 ? ((p.offlineSellingPrice - p.costPrice) / p.offlineSellingPrice) * 100 : 0;
             const onMargin = p.onlineSellingPrice > 0 ? ((p.onlineSellingPrice - p.costPrice) / p.onlineSellingPrice) * 100 : 0;
             return (
-              <Card key={p.id} className="border-slate-200 shadow-sm rounded-xl overflow-hidden">
+              <Card key={p.id} className="border-border shadow-sm rounded-xl overflow-hidden">
                 <CardContent className="p-4 space-y-4">
                   <div className="flex items-start justify-between">
                     <div>
-                      <h4 className="font-bold text-slate-900 text-base leading-tight">{p.name}</h4>
-                      <div className="text-xs text-slate-500 mt-1 flex items-center gap-2">
+                      <h4 className="font-bold text-foreground text-base leading-tight">{p.name}</h4>
+                      <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
                         <span>{p.variant}</span>
                         <span className="w-1 h-1 rounded-full bg-slate-300" />
                         <span className="font-mono">{p.sku}</span>
@@ -274,20 +274,20 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
                     </div>
                   </div>
 
-                  <div className="bg-slate-50 rounded-lg p-3 space-y-2 border border-slate-100">
+                  <div className="bg-muted/50 rounded-lg p-3 space-y-2 border border-border/50">
                     <div className="flex justify-between items-center text-xs">
-                      <span className="text-slate-500 font-medium">Modal (COGS)</span>
-                      <span className="font-mono text-slate-700 font-medium">{formatRupiah(p.costPrice)}</span>
+                      <span className="text-muted-foreground font-medium">Modal (COGS)</span>
+                      <span className="font-mono text-foreground/80 font-medium">{formatRupiah(p.costPrice)}</span>
                     </div>
-                    <div className="pt-2 border-t border-slate-200/60 flex justify-between items-center text-xs">
-                      <span className="text-slate-600 font-bold flex items-center gap-1.5"><StoreIcon className="w-3.5 h-3.5"/> Offline</span>
+                    <div className="pt-2 border-t border-border/60 flex justify-between items-center text-xs">
+                      <span className="text-foreground/80 font-bold flex items-center gap-1.5"><StoreIcon className="w-3.5 h-3.5"/> Offline</span>
                       <div className="text-right">
                         <span className="font-mono font-bold text-emerald-700">{formatRupiah(p.offlineSellingPrice)}</span>
                         <span className="text-[10px] text-emerald-600 ml-1">({offMargin.toFixed(0)}%)</span>
                       </div>
                     </div>
                     <div className="pt-1 flex justify-between items-center text-xs">
-                      <span className="text-slate-600 font-bold flex items-center gap-1.5"><PhoneIcon className="w-3.5 h-3.5"/> Online</span>
+                      <span className="text-foreground/80 font-bold flex items-center gap-1.5"><PhoneIcon className="w-3.5 h-3.5"/> Online</span>
                       <div className="text-right">
                         <span className="font-mono font-bold text-indigo-700">{formatRupiah(p.onlineSellingPrice)}</span>
                         <span className="text-[10px] text-indigo-600 ml-1">({onMargin.toFixed(0)}%)</span>
@@ -325,7 +325,7 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-700">SKU Produk</Label>
+              <Label className="text-xs font-semibold text-foreground/80">SKU Produk</Label>
               <Input
                 required
                 placeholder="mis. KB-OR-SM"
@@ -335,7 +335,7 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-700">Varian</Label>
+              <Label className="text-xs font-semibold text-foreground/80">Varian</Label>
               <Input
                 required
                 placeholder="mis. Small"
@@ -347,7 +347,7 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-slate-700">Nama Produk</Label>
+            <Label className="text-xs font-semibold text-foreground/80">Nama Produk</Label>
             <Input
               required
               placeholder="mis. Kebab Original Beef"
@@ -357,19 +357,19 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
             />
           </div>
 
-          <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200 space-y-4">
-            <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-              <Percent className="w-4 h-4 text-slate-700" /> Penetapan Harga &amp; Margin
+          <div className="p-4 bg-muted/50 rounded-xl border border-border space-y-4">
+            <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
+              <Percent className="w-4 h-4 text-foreground/80" /> Penetapan Harga &amp; Margin
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold text-slate-600">Harga Modal (HQ Cost)</Label>
+              <Label className="text-[11px] font-semibold text-foreground/80">Harga Modal (HQ Cost)</Label>
               <Input
                 type="number"
                 required
                 min={0}
                 value={costPrice || ''}
                 onChange={(e) => setCostPrice(Number(e.target.value))}
-                className="h-11 md:h-10 text-sm md:text-xs font-mono bg-white"
+                className="h-11 md:h-10 text-sm md:text-xs font-mono bg-card"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -381,7 +381,7 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
                   min={0}
                   value={offlineSellingPrice || ''}
                   onChange={(e) => setOfflineSellingPrice(Number(e.target.value))}
-                  className="h-11 md:h-10 text-sm md:text-xs font-mono bg-white"
+                  className="h-11 md:h-10 text-sm md:text-xs font-mono bg-card"
                 />
               </div>
               <div className="space-y-1.5">
@@ -392,7 +392,7 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
                   min={0}
                   value={onlineSellingPrice || ''}
                   onChange={(e) => setOnlineSellingPrice(Number(e.target.value))}
-                  className="h-11 md:h-10 text-sm md:text-xs font-mono bg-white"
+                  className="h-11 md:h-10 text-sm md:text-xs font-mono bg-card"
                 />
               </div>
             </div>
@@ -402,7 +402,7 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
             <Button type="button" variant="outline" onClick={() => setShowModal(false)} className="flex-1 h-11 md:h-10 text-xs font-bold">
               Batal
             </Button>
-            <Button type="submit" disabled={loading} className="flex-1 h-11 md:h-10 text-xs font-bold bg-slate-900 text-white hover:bg-slate-800">
+            <Button type="submit" disabled={loading} className="flex-1 h-11 md:h-10 text-xs font-bold bg-primary text-white hover:bg-primary/90">
               {loading ? 'Menyimpan...' : 'Simpan Produk'}
             </Button>
           </div>
@@ -412,17 +412,4 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
   );
 };
 
-// Mini icons for the table and cards
-const StoreIcon = ({ className }: { className?: string }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-    <polyline points="9 22 9 12 15 12 15 22" />
-  </svg>
-);
 
-const PhoneIcon = ({ className }: { className?: string }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
-    <line x1="12" y1="18" x2="12.01" y2="18" />
-  </svg>
-);

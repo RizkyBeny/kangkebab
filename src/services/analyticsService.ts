@@ -6,7 +6,9 @@ export async function getConsolidatedFinancials(filters?: {
   endDate?: string;
   branchId?: string;
 }): Promise<ConsolidatedFinancials> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const txWhere: any = {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const invWhere: any = {};
 
   if (filters?.branchId) {

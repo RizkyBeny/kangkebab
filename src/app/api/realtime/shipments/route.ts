@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   const stream = new ReadableStream({
     start(controller) {
-      const sendEvent = (data: any) => {
+      const sendEvent = (data: Record<string, unknown>) => {
         const payload = `data: ${JSON.stringify(data)}\n\n`;
         controller.enqueue(new TextEncoder().encode(payload));
       };
@@ -13,7 +13,7 @@ export async function GET(request: Request) {
       // Initial heartbeat ping
       sendEvent({ type: 'PING', message: 'SSE Connection Established' });
 
-      const onUpdate = (data: any) => {
+      const onUpdate = (data: Record<string, unknown>) => {
         sendEvent(data);
       };
 

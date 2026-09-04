@@ -22,12 +22,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check saved session in localStorage
     const saved = localStorage.getItem('kangkebab_user_session');
     if (saved) {
       try {
         setCurrentUser(JSON.parse(saved));
-      } catch (err) {
+      } catch {
         localStorage.removeItem('kangkebab_user_session');
       }
     }
@@ -42,7 +41,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const users: User[] = data.data.users;
       const found = users.find(
-        (u) => u.email.toLowerCase() === email.trim().toLowerCase() && (u as any).password === pass
+        (u) => u.email.toLowerCase() === email.trim().toLowerCase() && (u as unknown as Record<string, unknown>).password === pass
       );
 
       if (found) {
@@ -51,8 +50,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { success: true };
       }
       return { success: false };
-    } catch (err: any) {
-      return { success: false, error: err.message };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { success: false, error: message };
     }
   };
 

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/lib/authContext';
+import { useAuth } from '@/providers/AuthProvider';
 import { Lock, Mail, ShieldCheck, Store, ArrowRight, Sparkles } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';

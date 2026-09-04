@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { User } from '@/types';
+import { User, TabType } from '@/types';
 import {
   LayoutDashboard,
   PackageCheck,
@@ -12,7 +12,6 @@ import {
   Layers,
   Store,
   LogOut,
-  X,
   Search,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -20,16 +19,6 @@ import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-
-export type TabType =
-  | 'analytics'
-  | 'master'
-  | 'dispatch'
-  | 'reception'
-  | 'pos'
-  | 'live_products'
-  | 'inventory_global'
-  | 'history';
 
 interface TabItem {
   id: TabType;
@@ -48,43 +37,26 @@ interface SidebarProps {
   onCloseMobile?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({
+interface SidebarContentProps {
+  currentUser: User;
+  activeTab: TabType;
+  currentTabs: TabItem[];
+  onSelectTab: (tab: TabType) => void;
+  onCloseMobile?: () => void;
+  onLogout: () => void;
+}
+
+const SidebarContent: React.FC<SidebarContentProps> = ({
   currentUser,
   activeTab,
+  currentTabs,
   onSelectTab,
-  pendingReceptionCount = 0,
-  onLogout,
-  isOpenMobile = false,
   onCloseMobile,
+  onLogout,
 }) => {
-  if (!currentUser) return null;
-
   const role = currentUser.role;
 
-  const hqTabs: TabItem[] = [
-    { id: 'analytics', label: 'Konsolidasi HQ', icon: LayoutDashboard },
-    { id: 'master', label: 'Master Data & Pricing', icon: Boxes },
-    { id: 'dispatch', label: 'Pengiriman ke Cabang', icon: Truck },
-    { id: 'inventory_global', label: 'Stok Opname Cabang', icon: Layers },
-    { id: 'history', label: 'Riwayat Omzet', icon: History },
-  ];
-
-  const branchTabs: TabItem[] = [
-    { id: 'analytics', label: 'Analytics Penjualan', icon: LayoutDashboard },
-    { id: 'pos', label: 'POS Kasir Multichannel', icon: ShoppingBag },
-    {
-      id: 'reception',
-      label: 'Terima & Validasi Barang',
-      icon: PackageCheck,
-      badge: pendingReceptionCount > 0 ? pendingReceptionCount : undefined,
-    },
-    { id: 'live_products', label: 'Katalog Live Product', icon: Store },
-    { id: 'history', label: 'Riwayat Transaksi', icon: History },
-  ];
-
-  const currentTabs = role === 'HQ_ADMIN' ? hqTabs : branchTabs;
-
-  const SidebarContent = () => (
+  return (
     <div className="flex flex-col justify-between h-full text-sidebar-foreground">
       <div className="p-4 space-y-5">
         <div className="flex items-center space-x-2.5">
@@ -163,21 +135,70 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
     </div>
   );
+};
+
+export const Sidebar: React.FC<SidebarProps> = ({
+  currentUser,
+  activeTab,
+  onSelectTab,
+  pendingReceptionCount = 0,
+  onLogout,
+  isOpenMobile = false,
+  onCloseMobile,
+}) => {
+  if (!currentUser) return null;
+
+  const role = currentUser.role;
+
+  const hqTabs: TabItem[] = [
+    { id: 'analytics', label: 'Konsolidasi HQ', icon: LayoutDashboard },
+    { id: 'master', label: 'Master Data & Pricing', icon: Boxes },
+    { id: 'dispatch', label: 'Pengiriman ke Cabang', icon: Truck },
+    { id: 'inventory_global', label: 'Stok Opname Cabang', icon: Layers },
+    { id: 'history', label: 'Riwayat Omzet', icon: History },
+  ];
+
+  const branchTabs: TabItem[] = [
+    { id: 'analytics', label: 'Analytics Penjualan', icon: LayoutDashboard },
+    { id: 'pos', label: 'POS Kasir Multichannel', icon: ShoppingBag },
+    {
+      id: 'reception',
+      label: 'Terima & Validasi Barang',
+      icon: PackageCheck,
+      badge: pendingReceptionCount > 0 ? pendingReceptionCount : undefined,
+    },
+    { id: 'live_products', label: 'Katalog Live Product', icon: Store },
+    { id: 'history', label: 'Riwayat Transaksi', icon: History },
+  ];
+
+  const currentTabs = role === 'HQ_ADMIN' ? hqTabs : branchTabs;
 
   return (
     <>
-      {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-64 bg-sidebar border-r border-sidebar-border flex-col h-screen sticky top-0 flex-shrink-0 z-30">
-        <SidebarContent />
+        <SidebarContent
+          currentUser={currentUser}
+          activeTab={activeTab}
+          currentTabs={currentTabs}
+          onSelectTab={onSelectTab}
+          onCloseMobile={onCloseMobile}
+          onLogout={onLogout}
+        />
       </aside>
 
-      {/* Mobile Sidebar */}
       <Sheet open={isOpenMobile} onOpenChange={(open) => !open && onCloseMobile?.()}>
         <SheetContent side="left" className="w-[80vw] max-w-xs p-0 bg-sidebar border-sidebar-border">
           <SheetHeader className="hidden">
             <SheetTitle>Navigation Menu</SheetTitle>
           </SheetHeader>
-          <SidebarContent />
+          <SidebarContent
+            currentUser={currentUser}
+            activeTab={activeTab}
+            currentTabs={currentTabs}
+            onSelectTab={onSelectTab}
+            onCloseMobile={onCloseMobile}
+            onLogout={onLogout}
+          />
         </SheetContent>
       </Sheet>
     </>

@@ -107,11 +107,12 @@ export async function confirmShipmentReception(
   if (shipment.status === 'DITERIMA') throw new Error('Pengiriman ini sudah divalidasi sebelumnya');
 
   // We use sequential transaction array to avoid Interactive Transaction timeouts with Supabase PgBouncer
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const operations: any[] = [];
 
   // 1. Update items in shipment
   for (const conf of itemsConfirmed) {
-    const item = shipment.items.find((i: any) => i.id === conf.itemId);
+    const item = shipment.items.find((i) => i.id === conf.itemId);
     if (!item) continue;
 
     const qtyGood = Math.max(0, conf.qtyReceived - conf.qtyDamaged);
@@ -214,6 +215,7 @@ export async function updateShipment(
   if (!shipment) throw new Error('Pengiriman tidak ditemukan');
   if (shipment.status !== 'DIKIRIM') throw new Error('Hanya pengiriman berstatus Menunggu Cabang yang dapat diubah');
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const operations: any[] = [];
 
   // Delete all existing items

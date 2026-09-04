@@ -6,8 +6,8 @@ export async function GET() {
   try {
     const products = await getMasterProducts();
     return NextResponse.json({ success: true, data: products });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
   }
 }
 
@@ -16,8 +16,8 @@ export async function POST(request: Request) {
     const body = await request.json();
     const product = await createMasterProduct(body);
     return NextResponse.json({ success: true, data: product });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+  } catch (error: unknown) {
+    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : 'Unknown error' }, { status: 400 });
   }
 }
 
@@ -27,8 +27,8 @@ export async function PUT(request: Request) {
     const { id, ...data } = body;
     const product = await updateMasterProduct(id, data);
     return NextResponse.json({ success: true, data: product });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+  } catch (error: unknown) {
+    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : 'Unknown error' }, { status: 400 });
   }
 }
 
@@ -43,7 +43,7 @@ export async function DELETE(request: Request) {
 
     await deleteMasterProduct(id, userId, userName);
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
   }
 }

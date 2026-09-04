@@ -155,8 +155,8 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
       setMobileCartOpen(false);
       setCompletedTx(data.data);
       onRefresh();
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Gagal memproses transaksi POS');
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : 'Gagal memproses transaksi POS');
     } finally {
       setLoading(false);
     }

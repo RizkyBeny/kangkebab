@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { Inter, Geist } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
-import { AuthProvider } from "@/lib/authContext";
+import { AuthProvider } from "@/providers/AuthProvider";
 import { cn } from "@/lib/utils";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
@@ -18,7 +18,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="id" className={cn("font-sans", inter.variable)}>
-      <body className={`${inter.className} antialiased bg-slate-50 text-slate-900`}>
+      <body className={`${inter.className} antialiased`}>
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

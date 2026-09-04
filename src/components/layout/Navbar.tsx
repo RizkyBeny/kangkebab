@@ -1,9 +1,9 @@
 'use client';
 
 import React from 'react';
-import { User } from '@/types';
+import { User, TabType } from '@/types';
+import { TAB_LABELS } from '@/constants';
 import { Radio, Menu, ChevronRight, Home, LogOut } from 'lucide-react';
-import { TabType } from './Sidebar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
@@ -16,38 +16,13 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
-  currentUser,
   activeTab,
   sseConnected,
   onOpenMobileMenu,
   onLogout,
 }) => {
-  const getTabTitle = (tab: TabType) => {
-    switch (tab) {
-      case 'analytics':
-        return 'Konsolidasi HQ';
-      case 'master':
-        return 'Master Data & Pricing';
-      case 'dispatch':
-        return 'Pengiriman ke Cabang';
-      case 'inventory_global':
-        return 'Stok Opname Cabang';
-      case 'pos':
-        return 'POS Kasir Multichannel';
-      case 'reception':
-        return 'Terima & Validasi Barang';
-      case 'live_products':
-        return 'Katalog Live Product';
-      case 'history':
-        return 'Riwayat Transaksi';
-      default:
-        return 'Dashboard';
-    }
-  };
-
   return (
     <header className="bg-card/80 backdrop-blur-lg border-b border-border/50 sticky top-0 z-20 px-4 md:px-8 py-3.5 flex items-center justify-between shadow-sm transition-all">
-      {/* Left: Mobile Menu Toggle & Breadcrumbs */}
       <div className="flex items-center space-x-3">
         <Button
           variant="ghost"
@@ -59,17 +34,14 @@ export const Navbar: React.FC<NavbarProps> = ({
           <Menu className="w-5 h-5" />
         </Button>
 
-        {/* Breadcrumb Trail */}
         <div className="flex items-center space-x-2 text-xs text-muted-foreground font-medium">
           <Home className="w-3.5 h-3.5 text-primary/70" />
           <ChevronRight className="w-3 h-3 text-border" />
-          <span className="text-foreground font-bold tracking-tight">{getTabTitle(activeTab)}</span>
+          <span className="text-foreground font-bold tracking-tight">{TAB_LABELS[activeTab]}</span>
         </div>
       </div>
 
-      {/* Right: SSE Live Status & Logout */}
       <div className="flex items-center space-x-3">
-        {/* SSE Status Pill */}
         <Badge
           variant="outline"
           className={`flex items-center space-x-1.5 px-3 py-1 font-semibold rounded-full ${
@@ -82,7 +54,6 @@ export const Navbar: React.FC<NavbarProps> = ({
           <span className="hidden sm:inline">{sseConnected ? 'Realtime SSE Active' : 'Connecting SSE...'}</span>
         </Badge>
 
-        {/* Logout Quick Button */}
         <Button
           variant="secondary"
           size="sm"

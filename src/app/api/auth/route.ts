@@ -8,8 +8,8 @@ export async function GET() {
     const users = await getAllUsers();
     const branches = await getAllBranches();
     return NextResponse.json({ success: true, data: { users, branches } });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Auth API Error:", error);
-    return NextResponse.json({ success: false, error: error.message || String(error) }, { status: 500 });
+    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
   }
 }

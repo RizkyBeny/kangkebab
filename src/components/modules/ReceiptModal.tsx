@@ -91,7 +91,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ transaction, onClose
       theme: 'plain',
     });
 
-    const finalY = (doc as any).lastAutoTable?.finalY || 80;
+    const finalY = (doc as unknown as { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY || 80;
 
     doc.line(5, finalY + 2, 75, finalY + 2);
 
@@ -115,11 +115,11 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ transaction, onClose
       open={true}
       onOpenChange={(open) => !open && onClose()}
       title="Rincian Transaksi"
-      icon={<Receipt className="w-5 h-5 text-slate-700" />}
+      icon={<Receipt className="w-5 h-5 text-foreground/80" />}
     >
       <div className="space-y-4">
         <div className="flex flex-col items-center justify-center p-4 bg-emerald-50 rounded-xl border border-emerald-100 mb-2">
-          <div className="w-10 h-10 rounded-full bg-white text-emerald-600 border border-emerald-200 flex items-center justify-center shadow-sm mb-3">
+          <div className="w-10 h-10 rounded-full bg-card text-emerald-600 border border-emerald-200 flex items-center justify-center shadow-sm mb-3">
             <CheckCircle2 className="w-6 h-6" />
           </div>
           <span className="font-mono font-bold text-lg text-emerald-900">{transaction.transactionNumber}</span>
@@ -127,45 +127,45 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ transaction, onClose
         </div>
 
         {/* Receipt Preview Box */}
-        <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-3 font-mono text-xs shadow-inner">
-          <div className="border-b border-slate-200 pb-2 flex items-center justify-between">
-            <span className="text-slate-500 font-sans font-medium">Channel</span>
+        <div className="bg-muted/50 rounded-xl p-4 border border-border space-y-3 font-mono text-xs shadow-inner">
+          <div className="border-b border-border pb-2 flex items-center justify-between">
+            <span className="text-muted-foreground font-sans font-medium">Channel</span>
             <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-sans font-bold">
               {transaction.channel}
             </span>
           </div>
 
-          <div className="space-y-1 text-slate-600 text-[11px]">
+          <div className="space-y-1 text-foreground/80 text-[11px]">
             <div className="flex justify-between">
               <span>Cabang:</span>
-              <span className="font-bold text-slate-900">{transaction.branch.name}</span>
+              <span className="font-bold text-foreground">{transaction.branch.name}</span>
             </div>
             <div className="flex justify-between">
               <span>Waktu:</span>
-              <span className="font-bold text-slate-900">{formatDate(transaction.createdAt)}</span>
+              <span className="font-bold text-foreground">{formatDate(transaction.createdAt)}</span>
             </div>
             <div className="flex justify-between">
               <span>Customer:</span>
-              <span className="font-bold text-slate-900">{transaction.customerName || '-'} ({transaction.customerPhone || '-'})</span>
+              <span className="font-bold text-foreground">{transaction.customerName || '-'} ({transaction.customerPhone || '-'})</span>
             </div>
             <div className="flex justify-between">
               <span>Pembayaran:</span>
-              <span className="font-bold text-slate-900">{transaction.paymentMethod || '-'} - {transaction.paymentStatus || '-'}</span>
+              <span className="font-bold text-foreground">{transaction.paymentMethod || '-'} - {transaction.paymentStatus || '-'}</span>
             </div>
           </div>
 
-          <div className="border-t border-slate-200 pt-3 space-y-2">
+          <div className="border-t border-border pt-3 space-y-2">
             {transaction.items.map((item) => (
               <div key={item.id} className="flex justify-between text-[11px]">
                 <span>
                   {item.masterProduct.name} ({item.qty}x)
                 </span>
-                <span className="font-bold text-slate-900">{formatRupiah(item.qty * item.sellingPrice)}</span>
+                <span className="font-bold text-foreground">{formatRupiah(item.qty * item.sellingPrice)}</span>
               </div>
             ))}
           </div>
 
-          <div className="border-t border-slate-200 pt-3 mt-2 flex justify-between text-xs font-bold text-slate-900">
+          <div className="border-t border-border pt-3 mt-2 flex justify-between text-xs font-bold text-foreground">
             <span>TOTAL PEMBAYARAN</span>
             <span className="text-emerald-700 text-sm font-mono">{formatRupiah(transaction.totalAmount)}</span>
           </div>

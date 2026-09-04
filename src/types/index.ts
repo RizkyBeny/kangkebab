@@ -1,5 +1,15 @@
 export type UserRole = 'HQ_ADMIN' | 'CABANG_STAFF';
 
+export type TabType =
+  | 'analytics'
+  | 'master'
+  | 'dispatch'
+  | 'reception'
+  | 'pos'
+  | 'live_products'
+  | 'inventory_global'
+  | 'history';
+
 export type SalesChannel = 'ONLINE' | 'OFFLINE';
 
 export type OnlinePlatform = 'SHOPEE' | 'TIKTOK' | 'NONE';

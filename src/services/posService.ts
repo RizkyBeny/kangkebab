@@ -42,7 +42,8 @@ export async function createSalesTransaction(data: {
 
   let grandTotalAmount = 0;
   let grandTotalCost = 0;
-  const transactionItemsData: any[] = [];
+  const transactionItemsData: { masterProductId: string; qty: number; sellingPrice: number; costPrice: number }[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const operations: any[] = [];
 
   // Validate inventory & calculate totals atomically outside the main transaction array (using individual reads)
@@ -157,6 +158,7 @@ export async function getSalesTransactions(filters?: {
   startDate?: string;
   endDate?: string;
 }): Promise<SalesTransaction[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const whereCondition: any = {};
 
   if (filters?.branchId) {
@@ -211,9 +213,9 @@ export async function updateSalesTransaction(
 
   if (!existingTx) throw new Error('Transaksi tidak ditemukan');
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const operations: any[] = [];
   let newTotalAmount = existingTx.totalAmount;
-  let newTotalCost = existingTx.totalCost;
 
   if (data.items && data.items.length > 0) {
     // We update each item's qty and sellingPrice.
@@ -246,6 +248,7 @@ export async function updateSalesTransaction(
     newTotalAmount = data.ecommerceActualPrice;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const updateData: any = {
     totalAmount: newTotalAmount,
   };
@@ -286,4 +289,100 @@ export async function updateSalesTransaction(
   });
 
   return updatedTx as unknown as SalesTransaction;
+}
+
+export async function deleteSalesTransaction(data: {
+  id: string;
+  branchId: string;
+  userId: string;
+  userName: string;
+}): Promise<void> {
+  await deleteSalesTransactions({
+    ids: [data.id],
+    branchId: data.branchId,
+    userId: data.userId,
+    userName: data.userName,
+  });
+}
+
+export async function deleteSalesTransactions(data: {
+  ids: string[];
+  branchId: string;
+  userId: string;
+  userName: string;
+}): Promise<number> {
+  const ids = [...new Set(data.ids)];
+  if (ids.length === 0) return 0;
+
+  const existingTxs = await prisma.salesTransaction.findMany({
+    where: { id: { in: ids } },
+    include: {
+      branch: true,
+      items: { include: { masterProduct: true } },
+    },
+  });
+
+  if (existingTxs.length === 0) throw new Error('Transaksi tidak ditemukan');
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const operations: any[] = [];
+
+  // Restore sold stock back to qtyAvailable for each item across all transactions
+  for (const tx of existingTxs) {
+    for (const item of tx.items) {
+      operations.push(
+        prisma.branchInventory.update({
+          where: {
+            branchId_masterProductId: {
+              branchId: tx.branchId,
+              masterProductId: item.masterProductId,
+            },
+          },
+          data: {
+            qtyAvailable: { increment: item.qty },
+          },
+        })
+      );
+    }
+  }
+
+  // Delete all transactions (items cascade via onDelete: Cascade)
+  operations.push(
+    prisma.salesTransaction.deleteMany({
+      where: { id: { in: existingTxs.map((t) => t.id) } },
+    })
+  );
+
+  // Audit Log
+  const totalDeleted = existingTxs.length;
+  const totalItemsRestored = existingTxs.reduce(
+    (acc, tx) => acc + tx.items.reduce((a, i) => a + i.qty, 0),
+    0
+  );
+  const numbers = existingTxs.map((t) => t.transactionNumber).join(', ');
+
+  operations.push(
+    prisma.auditLog.create({
+      data: {
+        userId: data.userId,
+        userName: data.userName,
+        action: 'DELETE_SALES_TRANSACTIONS',
+        entity: 'SalesTransaction',
+        entityId: existingTxs[0].id,
+        details: `${data.userName} menghapus ${totalDeleted} transaksi (${numbers}). Total ${totalItemsRestored} unit stok dikembalikan ke stok jual.`,
+      },
+    })
+  );
+
+  await prisma.$transaction(operations);
+
+  // Emit real-time stock update via SSE
+  sseBroadcaster.emit('SALES_UPDATED', {
+    type: 'TRANSACTIONS_DELETED',
+    branchId: data.branchId,
+    count: totalDeleted,
+    timestamp: new Date().toISOString(),
+  });
+
+  return totalDeleted;
 }

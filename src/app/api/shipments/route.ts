@@ -9,8 +9,8 @@ export async function GET(request: Request) {
 
     const shipments = await getShipments(branchId);
     return NextResponse.json({ success: true, data: shipments });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
   }
 }
 
@@ -19,8 +19,8 @@ export async function POST(request: Request) {
     const body = await request.json();
     const shipment = await createShipment(body);
     return NextResponse.json({ success: true, data: shipment });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+  } catch (error: unknown) {
+    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : 'Unknown error' }, { status: 400 });
   }
 }
 
@@ -30,8 +30,8 @@ export async function PUT(request: Request) {
     const { shipmentId, itemsConfirmed, userId, userName } = body;
     const shipment = await confirmShipmentReception(shipmentId, itemsConfirmed, userId, userName);
     return NextResponse.json({ success: true, data: shipment });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+  } catch (error: unknown) {
+    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : 'Unknown error' }, { status: 400 });
   }
 }
 
@@ -41,7 +41,7 @@ export async function PATCH(request: Request) {
     const { shipmentId, items, userId, userName } = body;
     const shipment = await updateShipment(shipmentId, { items, userId, userName });
     return NextResponse.json({ success: true, data: shipment });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+  } catch (error: unknown) {
+    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : 'Unknown error' }, { status: 400 });
   }
 }
