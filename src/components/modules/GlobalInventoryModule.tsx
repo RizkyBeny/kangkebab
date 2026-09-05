@@ -45,7 +45,7 @@ export const GlobalInventoryModule: React.FC<GlobalInventoryModuleProps> = ({ in
               <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Stok Jual</TableHead>
               <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Rusak/Hilang</TableHead>
               <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Modal (HQ)</TableHead>
-              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Harga (Off/On)</TableHead>
+              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Harga (Off/Shopee/TikTok)</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -84,7 +84,8 @@ export const GlobalInventoryModule: React.FC<GlobalInventoryModuleProps> = ({ in
                   <TableCell>
                     <div className="font-mono text-xs font-semibold space-y-1">
                       <div className="text-emerald-700">{formatRupiah(inv.masterProduct.offlineSellingPrice)} (Off)</div>
-                      <div className="text-indigo-700">{formatRupiah(inv.masterProduct.onlineSellingPrice)} (On)</div>
+                      <div className="text-primary">{formatRupiah(inv.masterProduct.shopeeSellingPrice)} (Shopee)</div>
+                      <div className="text-foreground/80">{formatRupiah(inv.masterProduct.tiktokSellingPrice)} (TikTok)</div>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -130,11 +131,18 @@ export const GlobalInventoryModule: React.FC<GlobalInventoryModuleProps> = ({ in
                     </span>
                   </div>
                   
-                  <div className="pt-2 border-t border-border/60 flex justify-between items-center text-[11px]">
-                    <span className="text-muted-foreground">Modal: <span className="font-mono font-bold text-foreground/80">{formatRupiah(inv.masterProduct.costPrice)}</span></span>
-                    <div className="text-right space-x-2 font-mono">
-                      <span className="text-emerald-700 font-semibold">{formatRupiah(inv.masterProduct.offlineSellingPrice)}</span>
-                      <span className="text-indigo-700 font-semibold">{formatRupiah(inv.masterProduct.onlineSellingPrice)}</span>
+                  <div className="pt-2 border-t border-border/60 space-y-1 text-[11px]">
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Offline</span>
+                      <span className="font-mono font-bold text-emerald-700">{formatRupiah(inv.masterProduct.offlineSellingPrice)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Shopee</span>
+                      <span className="font-mono font-bold text-primary">{formatRupiah(inv.masterProduct.shopeeSellingPrice)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">TikTok</span>
+                      <span className="font-mono font-bold text-foreground/80">{formatRupiah(inv.masterProduct.tiktokSellingPrice)}</span>
                     </div>
                   </div>
                 </div>

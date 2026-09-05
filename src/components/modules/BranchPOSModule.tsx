@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { BranchInventory, SalesTransaction, SalesChannel, OnlinePlatform, User } from '@/types';
+import { BranchInventory, SalesTransaction, SalesChannel, OnlinePlatform, User, MasterProduct } from '@/types';
 import { formatRupiah } from '@/constants';
 import { ShoppingBag, ShoppingCart, Plus, Minus, Trash2, Store, Smartphone, AlertCircle, X, Settings2 } from 'lucide-react';
 import { ReceiptModal } from './ReceiptModal';
@@ -105,11 +105,18 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
     setCart(cart.filter((c) => c.masterProductId !== masterProductId));
   };
 
+  const resolveBasePrice = (prod: MasterProduct) => {
+    if (channel === 'ONLINE') {
+      return platform === 'SHOPEE' ? prod.shopeeSellingPrice : prod.tiktokSellingPrice;
+    }
+    return prod.offlineSellingPrice;
+  };
+
   const calculateSubtotal = () => {
     return cart.reduce((sum, item) => {
       const inv = inventories.find((i) => i.masterProductId === item.masterProductId);
       if (!inv) return sum;
-      const price = item.customPrice ?? (channel === 'ONLINE' ? inv.masterProduct.onlineSellingPrice : inv.masterProduct.offlineSellingPrice);
+      const price = item.customPrice ?? resolveBasePrice(inv.masterProduct);
       return sum + price * item.qty;
     }, 0);
   };
@@ -123,6 +130,11 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
 
     if (!customerName || !customerPhone) {
       setErrorMsg('Nama dan No. Handphone customer wajib diisi');
+      return;
+    }
+
+    if (channel === 'ONLINE' && (ecommerceActualPrice === '' || Number(ecommerceActualPrice) <= 0)) {
+      setErrorMsg('Harga Actual Ecommerce wajib diisi untuk transaksi Online');
       return;
     }
 
@@ -196,7 +208,7 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
             const inv = inventories.find((i) => i.masterProductId === item.masterProductId);
             if (!inv) return null;
             const prod = inv.masterProduct;
-            const price = item.customPrice ?? (channel === 'ONLINE' ? prod.onlineSellingPrice : prod.offlineSellingPrice);
+            const price = item.customPrice ?? resolveBasePrice(prod);
 
             return (
               <div key={item.masterProductId} className="pt-2.5 flex items-center justify-between">
@@ -256,8 +268,18 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
 
         {channel === 'ONLINE' && (
           <div className="space-y-2 pb-2 border-b border-border">
-            <Label className="text-[11px] font-bold">Harga Actual Ecommerce (Opsional)</Label>
-            <Input type="number" value={ecommerceActualPrice} onChange={e => setEcommerceActualPrice(e.target.value === '' ? '' : Number(e.target.value))} placeholder="0" className="h-8 text-xs" />
+            <Label className="text-[11px] font-bold">Harga Actual Ecommerce <span className="text-destructive">*</span></Label>
+            <Input
+              type="number"
+              min={0}
+              value={ecommerceActualPrice}
+              onChange={e => setEcommerceActualPrice(e.target.value === '' ? '' : Number(e.target.value))}
+              placeholder="Total dari platform"
+              className="h-8 text-xs"
+            />
+            <p className="text-[10px] text-muted-foreground font-medium">
+              Nilai ini menjadi total omzet utama transaksi online (menggantikan total item).
+            </p>
           </div>
         )}
 
@@ -295,8 +317,17 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
         </div>
 
         <div className="flex justify-between items-center text-sm font-bold text-foreground">
-          <span>TOTAL BAYAR</span>
-          <span className="text-base text-primary font-mono">{formatRupiah(calculateSubtotal())}</span>
+          <div>
+            <span>TOTAL BAYAR</span>
+            {channel === 'ONLINE' && ecommerceActualPrice !== '' && (
+              <div className="text-[10px] text-muted-foreground font-medium">Harga aktual ecommerce (total utama)</div>
+            )}
+          </div>
+          <span className="text-base text-primary font-mono">
+            {channel === 'ONLINE' && ecommerceActualPrice !== ''
+              ? formatRupiah(Number(ecommerceActualPrice))
+              : formatRupiah(calculateSubtotal())}
+          </span>
         </div>
 
         <Button
@@ -407,7 +438,7 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {availableInventories.map((inv) => {
                   const prod = inv.masterProduct;
-                  const activePrice = channel === 'ONLINE' ? prod.onlineSellingPrice : prod.offlineSellingPrice;
+                  const activePrice = resolveBasePrice(prod);
                   const inCart = cart.find((c) => c.masterProductId === prod.id);
 
                   return (
@@ -468,7 +499,7 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
               <ShoppingCart className="w-4 h-4" />
               <span>Keranjang POS ({cartItemsCount} item)</span>
             </div>
-            <span className="font-mono text-sm">{formatRupiah(calculateSubtotal())}</span>
+            <span className="font-mono text-sm">{formatRupiah(channel === 'ONLINE' && ecommerceActualPrice !== '' ? Number(ecommerceActualPrice) : calculateSubtotal())}</span>
           </Button>
         </div>
       )}

@@ -44,6 +44,12 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({ tran
     setLoading(true);
     setErrorMsg('');
 
+    if (transaction.channel === 'ONLINE' && (ecommerceActualPrice === '' || Number(ecommerceActualPrice) <= 0)) {
+      setErrorMsg('Harga Actual Ecommerce wajib diisi untuk transaksi Online');
+      setLoading(false);
+      return;
+    }
+
     try {
       const payload = {
         id: transaction.id,
@@ -120,7 +126,10 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({ tran
           </div>
 
           <div className="space-y-2">
-            <Label className="text-xs font-bold text-foreground/80">Overwrite Total Omzet (Harga Aktual Ecommerce)</Label>
+            <Label className="text-xs font-bold text-foreground/80">
+              Overwrite Total Omzet (Harga Aktual Ecommerce)
+              {transaction.channel === 'ONLINE' && <span className="text-destructive"> *</span>}
+            </Label>
             <Input 
               type="number" 
               placeholder="Kosongkan jika ingin mengikuti total per item" 

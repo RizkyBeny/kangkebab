@@ -24,6 +24,10 @@ export async function createSalesTransaction(data: {
     throw new Error('Wajib memilih platform e-commerce (Shopee atau TikTok) untuk transaksi Online');
   }
 
+  if (data.channel === 'ONLINE' && (data.ecommerceActualPrice === undefined || data.ecommerceActualPrice === null || data.ecommerceActualPrice <= 0)) {
+    throw new Error('Harga Actual Ecommerce wajib diisi untuk transaksi Online');
+  }
+
   const branch = await prisma.branch.findUnique({ where: { id: data.branchId } });
   if (!branch) throw new Error('Cabang tidak ditemukan');
 
@@ -65,8 +69,14 @@ export async function createSalesTransaction(data: {
     }
 
     const prod = inventory.masterProduct;
-    // Auto-lock price based on channel, or override with custom price if provided
-    const sellingPrice = data.items.find(i => i.masterProductId === cartItem.masterProductId)?.customPrice ?? (data.channel === 'ONLINE' ? prod.onlineSellingPrice : prod.offlineSellingPrice);
+    // Auto-lock price based on channel & platform, or override with custom price if provided
+    const autoPrice =
+      data.channel === 'ONLINE'
+        ? data.platform === 'SHOPEE'
+          ? prod.shopeeSellingPrice
+          : prod.tiktokSellingPrice
+        : prod.offlineSellingPrice;
+    const sellingPrice = data.items.find(i => i.masterProductId === cartItem.masterProductId)?.customPrice ?? autoPrice;
     const itemSubtotal = sellingPrice * cartItem.qty;
     const itemCostTotal = prod.costPrice * cartItem.qty;
 
@@ -91,6 +101,10 @@ export async function createSalesTransaction(data: {
     );
   }
 
+  // For ONLINE transactions, the ecommerce actual price IS the primary amount (overrides computed total)
+  const finalTotalAmount =
+    data.channel === 'ONLINE' ? (data.ecommerceActualPrice ?? grandTotalAmount) : grandTotalAmount;
+
   // Create SalesTransaction record
   operations.push(
     prisma.salesTransaction.create({
@@ -103,8 +117,8 @@ export async function createSalesTransaction(data: {
         customerPhone: data.customerPhone,
         paymentStatus: data.paymentStatus,
         paymentMethod: data.paymentMethod,
-        ecommerceActualPrice: data.ecommerceActualPrice || null,
-        totalAmount: grandTotalAmount,
+        ecommerceActualPrice: data.channel === 'ONLINE' ? data.ecommerceActualPrice : null,
+        totalAmount: finalTotalAmount,
         totalCost: grandTotalCost,
         items: {
           create: transactionItemsData,
@@ -132,7 +146,7 @@ export async function createSalesTransaction(data: {
         // entityId will be set after execution, but for Sequential Transactions we can't easily chain IDs.
         // We will leave entityId blank or generate a UUID beforehand if needed.
         // For simplicity, we just save the transaction number.
-        details: `Transaksi ${transactionNumber} (${data.channel}${data.platform ? ' - ' + data.platform : ''}) diselesaikan di ${branch.name}. Total: Rp ${grandTotalAmount}`,
+        details: `Transaksi ${transactionNumber} (${data.channel}${data.platform ? ' - ' + data.platform : ''}) diselesaikan di ${branch.name}. Total: Rp ${finalTotalAmount}`,
       },
     })
   );

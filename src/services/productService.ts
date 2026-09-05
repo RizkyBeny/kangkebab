@@ -15,7 +15,8 @@ export async function createMasterProduct(data: {
   variant: string;
   costPrice: number;
   offlineSellingPrice: number;
-  onlineSellingPrice: number;
+  shopeeSellingPrice: number;
+  tiktokSellingPrice: number;
   userId: string;
   userName: string;
 }): Promise<MasterProduct> {
@@ -26,7 +27,8 @@ export async function createMasterProduct(data: {
       variant: data.variant,
       costPrice: data.costPrice,
       offlineSellingPrice: data.offlineSellingPrice,
-      onlineSellingPrice: data.onlineSellingPrice,
+      shopeeSellingPrice: data.shopeeSellingPrice,
+      tiktokSellingPrice: data.tiktokSellingPrice,
     },
   });
 
@@ -53,7 +55,8 @@ export async function updateMasterProduct(
     variant?: string;
     costPrice?: number;
     offlineSellingPrice?: number;
-    onlineSellingPrice?: number;
+    shopeeSellingPrice?: number;
+    tiktokSellingPrice?: number;
     userId: string;
     userName: string;
   }
@@ -68,7 +71,8 @@ export async function updateMasterProduct(
       variant: data.variant,
       costPrice: data.costPrice,
       offlineSellingPrice: data.offlineSellingPrice,
-      onlineSellingPrice: data.onlineSellingPrice,
+      shopeeSellingPrice: data.shopeeSellingPrice,
+      tiktokSellingPrice: data.tiktokSellingPrice,
     },
   });
 
@@ -79,8 +83,11 @@ export async function updateMasterProduct(
   if (oldProduct && data.offlineSellingPrice && oldProduct.offlineSellingPrice !== data.offlineSellingPrice) {
     changesText += ` | Jual Offline: ${oldProduct.offlineSellingPrice} -> ${data.offlineSellingPrice}`;
   }
-  if (oldProduct && data.onlineSellingPrice && oldProduct.onlineSellingPrice !== data.onlineSellingPrice) {
-    changesText += ` | Jual Online: ${oldProduct.onlineSellingPrice} -> ${data.onlineSellingPrice}`;
+  if (oldProduct && data.shopeeSellingPrice && oldProduct.shopeeSellingPrice !== data.shopeeSellingPrice) {
+    changesText += ` | Jual Shopee: ${oldProduct.shopeeSellingPrice} -> ${data.shopeeSellingPrice}`;
+  }
+  if (oldProduct && data.tiktokSellingPrice && oldProduct.tiktokSellingPrice !== data.tiktokSellingPrice) {
+    changesText += ` | Jual TikTok: ${oldProduct.tiktokSellingPrice} -> ${data.tiktokSellingPrice}`;
   }
 
   await prisma.auditLog.create({

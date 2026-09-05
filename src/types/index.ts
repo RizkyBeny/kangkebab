@@ -40,7 +40,8 @@ export interface MasterProduct {
   variant: string;
   costPrice: number;
   offlineSellingPrice: number;
-  onlineSellingPrice: number;
+  shopeeSellingPrice: number;
+  tiktokSellingPrice: number;
   createdAt: Date | string;
   updatedAt: Date | string;
 }

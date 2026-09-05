@@ -41,7 +41,8 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
   const [variant, setVariant] = useState('');
   const [costPrice, setCostPrice] = useState<number>(0);
   const [offlineSellingPrice, setOfflineSellingPrice] = useState<number>(0);
-  const [onlineSellingPrice, setOnlineSellingPrice] = useState<number>(0);
+  const [shopeeSellingPrice, setShopeeSellingPrice] = useState<number>(0);
+  const [tiktokSellingPrice, setTiktokSellingPrice] = useState<number>(0);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -52,7 +53,8 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
     setVariant('');
     setCostPrice(0);
     setOfflineSellingPrice(0);
-    setOnlineSellingPrice(0);
+    setShopeeSellingPrice(0);
+    setTiktokSellingPrice(0);
     setErrorMsg('');
     setShowModal(true);
   };
@@ -64,7 +66,8 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
     setVariant(prod.variant);
     setCostPrice(prod.costPrice);
     setOfflineSellingPrice(prod.offlineSellingPrice);
-    setOnlineSellingPrice(prod.onlineSellingPrice);
+    setShopeeSellingPrice(prod.shopeeSellingPrice);
+    setTiktokSellingPrice(prod.tiktokSellingPrice);
     setErrorMsg('');
     setShowModal(true);
   };
@@ -82,7 +85,8 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
         variant,
         costPrice: Number(costPrice),
         offlineSellingPrice: Number(offlineSellingPrice),
-        onlineSellingPrice: Number(onlineSellingPrice),
+        shopeeSellingPrice: Number(shopeeSellingPrice),
+        tiktokSellingPrice: Number(tiktokSellingPrice),
         userId: currentUser.id,
         userName: currentUser.name,
       };
@@ -127,14 +131,15 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
   );
 
   const handleExportCSV = () => {
-    const headers = ['SKU', 'Nama Produk', 'Varian', 'Modal (COGS)', 'Jual Offline', 'Jual Online'];
+    const headers = ['SKU', 'Nama Produk', 'Varian', 'Modal (COGS)', 'Jual Offline', 'Jual Shopee', 'Jual TikTok'];
     const rows = filteredProducts.map(p => [
       p.sku,
       `"${p.name}"`,
       `"${p.variant}"`,
       p.costPrice,
       p.offlineSellingPrice,
-      p.onlineSellingPrice
+      p.shopeeSellingPrice,
+      p.tiktokSellingPrice
     ]);
     
     const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
@@ -158,7 +163,7 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
             <span>Master Data &amp; Pricing</span>
           </h2>
           <p className="text-xs md:text-sm text-muted-foreground mt-1.5 font-medium leading-relaxed max-w-lg">
-            Kelola katalog master produk, harga modal, serta penetapan harga jual Offline &amp; Online secara terpusat untuk seluruh cabang.
+            Kelola katalog master produk, harga modal, serta penetapan harga jual Offline, Shopee &amp; TikTok secara terpusat untuk seluruh cabang.
           </p>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
@@ -194,7 +199,8 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
               <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Produk &amp; Varian</TableHead>
               <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Modal (COGS)</TableHead>
               <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Jual Offline</TableHead>
-              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Jual Online</TableHead>
+              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Jual Shopee</TableHead>
+              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Jual TikTok</TableHead>
               <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Margin (%)</TableHead>
               <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Aksi</TableHead>
             </TableRow>
@@ -202,14 +208,15 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
           <TableBody>
             {filteredProducts.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-32 text-center text-muted-foreground text-sm">
+                <TableCell colSpan={8} className="h-32 text-center text-muted-foreground text-sm">
                   Belum ada master produk yang tersimpan.
                 </TableCell>
               </TableRow>
             ) : (
               filteredProducts.map((p) => {
                 const offMargin = p.offlineSellingPrice > 0 ? ((p.offlineSellingPrice - p.costPrice) / p.offlineSellingPrice) * 100 : 0;
-                const onMargin = p.onlineSellingPrice > 0 ? ((p.onlineSellingPrice - p.costPrice) / p.onlineSellingPrice) * 100 : 0;
+                const shopeeMargin = p.shopeeSellingPrice > 0 ? ((p.shopeeSellingPrice - p.costPrice) / p.shopeeSellingPrice) * 100 : 0;
+                const tiktokMargin = p.tiktokSellingPrice > 0 ? ((p.tiktokSellingPrice - p.costPrice) / p.tiktokSellingPrice) * 100 : 0;
                 return (
                   <TableRow key={p.id} className="group transition-colors hover:bg-muted/30">
                     <TableCell className="font-mono text-muted-foreground font-medium text-xs py-4">{p.sku}</TableCell>
@@ -224,12 +231,16 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
                       <span className="font-mono font-semibold text-emerald-600 text-sm">{formatRupiah(p.offlineSellingPrice)}</span>
                     </TableCell>
                     <TableCell>
-                      <span className="font-mono font-semibold text-primary text-sm">{formatRupiah(p.onlineSellingPrice)}</span>
+                      <span className="font-mono font-semibold text-primary text-sm">{formatRupiah(p.shopeeSellingPrice)}</span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-mono font-semibold text-foreground text-sm">{formatRupiah(p.tiktokSellingPrice)}</span>
                     </TableCell>
                     <TableCell>
                       <div className="text-[11px] font-semibold space-y-1">
                         <div className="text-emerald-600 flex items-center gap-1.5"><StoreIcon className="w-3 h-3"/> {offMargin.toFixed(1)}%</div>
-                        <div className="text-primary flex items-center gap-1.5"><PhoneIcon className="w-3 h-3"/> {onMargin.toFixed(1)}%</div>
+                        <div className="text-primary flex items-center gap-1.5"><PhoneIcon className="w-3 h-3"/> {shopeeMargin.toFixed(1)}%</div>
+                        <div className="text-foreground flex items-center gap-1.5"><PhoneIcon className="w-3 h-3"/> {tiktokMargin.toFixed(1)}%</div>
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
@@ -259,7 +270,8 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
         ) : (
           filteredProducts.map((p) => {
             const offMargin = p.offlineSellingPrice > 0 ? ((p.offlineSellingPrice - p.costPrice) / p.offlineSellingPrice) * 100 : 0;
-            const onMargin = p.onlineSellingPrice > 0 ? ((p.onlineSellingPrice - p.costPrice) / p.onlineSellingPrice) * 100 : 0;
+            const shopeeMargin = p.shopeeSellingPrice > 0 ? ((p.shopeeSellingPrice - p.costPrice) / p.shopeeSellingPrice) * 100 : 0;
+            const tiktokMargin = p.tiktokSellingPrice > 0 ? ((p.tiktokSellingPrice - p.costPrice) / p.tiktokSellingPrice) * 100 : 0;
             return (
               <Card key={p.id} className="border-border shadow-sm rounded-xl overflow-hidden">
                 <CardContent className="p-4 space-y-4">
@@ -287,10 +299,17 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
                       </div>
                     </div>
                     <div className="pt-1 flex justify-between items-center text-xs">
-                      <span className="text-foreground/80 font-bold flex items-center gap-1.5"><PhoneIcon className="w-3.5 h-3.5"/> Online</span>
+                      <span className="text-foreground/80 font-bold flex items-center gap-1.5"><PhoneIcon className="w-3.5 h-3.5"/> Shopee</span>
                       <div className="text-right">
-                        <span className="font-mono font-bold text-indigo-700">{formatRupiah(p.onlineSellingPrice)}</span>
-                        <span className="text-[10px] text-indigo-600 ml-1">({onMargin.toFixed(0)}%)</span>
+                        <span className="font-mono font-bold text-primary">{formatRupiah(p.shopeeSellingPrice)}</span>
+                        <span className="text-[10px] text-primary ml-1">({shopeeMargin.toFixed(0)}%)</span>
+                      </div>
+                    </div>
+                    <div className="pt-1 flex justify-between items-center text-xs">
+                      <span className="text-foreground/80 font-bold flex items-center gap-1.5"><PhoneIcon className="w-3.5 h-3.5"/> TikTok</span>
+                      <div className="text-right">
+                        <span className="font-mono font-bold text-foreground">{formatRupiah(p.tiktokSellingPrice)}</span>
+                        <span className="text-[10px] text-foreground/60 ml-1">({tiktokMargin.toFixed(0)}%)</span>
                       </div>
                     </div>
                   </div>
@@ -361,18 +380,18 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
             <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
               <Percent className="w-4 h-4 text-foreground/80" /> Penetapan Harga &amp; Margin
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold text-foreground/80">Harga Modal (HQ Cost)</Label>
-              <Input
-                type="number"
-                required
-                min={0}
-                value={costPrice || ''}
-                onChange={(e) => setCostPrice(Number(e.target.value))}
-                className="h-11 md:h-10 text-sm md:text-xs font-mono bg-card"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-semibold text-foreground/80">Harga Modal (HQ Cost)</Label>
+                <Input
+                  type="number"
+                  required
+                  min={0}
+                  value={costPrice || ''}
+                  onChange={(e) => setCostPrice(Number(e.target.value))}
+                  className="h-11 md:h-10 text-sm md:text-xs font-mono bg-card"
+                />
+              </div>
               <div className="space-y-1.5">
                 <Label className="text-[11px] font-semibold text-emerald-700">Harga Jual Offline</Label>
                 <Input
@@ -385,13 +404,24 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[11px] font-semibold text-indigo-700">Harga Jual Online</Label>
+                <Label className="text-[11px] font-semibold text-primary">Harga Jual Shopee</Label>
                 <Input
                   type="number"
                   required
                   min={0}
-                  value={onlineSellingPrice || ''}
-                  onChange={(e) => setOnlineSellingPrice(Number(e.target.value))}
+                  value={shopeeSellingPrice || ''}
+                  onChange={(e) => setShopeeSellingPrice(Number(e.target.value))}
+                  className="h-11 md:h-10 text-sm md:text-xs font-mono bg-card"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-semibold text-foreground/80">Harga Jual TikTok</Label>
+                <Input
+                  type="number"
+                  required
+                  min={0}
+                  value={tiktokSellingPrice || ''}
+                  onChange={(e) => setTiktokSellingPrice(Number(e.target.value))}
                   className="h-11 md:h-10 text-sm md:text-xs font-mono bg-card"
                 />
               </div>

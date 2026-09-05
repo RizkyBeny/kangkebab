@@ -82,7 +82,7 @@ export const LiveProductsModule: React.FC<LiveProductsModuleProps> = ({ inventor
             <span>Katalog Live Product &amp; Stok Opname</span>
           </h2>
           <p className="text-xs md:text-sm text-muted-foreground mt-1.5 font-medium leading-relaxed max-w-lg">
-            Daftar stok produk siap jual di {currentUser.branch?.name || 'Cabang Madiun'} beserta perbandingan harga Offline &amp; Online. Barang yang salah tercatat rusak/hilang dapat dikembalikan ke stok jual.
+            Daftar stok produk siap jual di {currentUser.branch?.name || 'Cabang Madiun'} beserta perbandingan harga Offline, Shopee &amp; TikTok. Barang yang salah tercatat rusak/hilang dapat dikembalikan ke stok jual.
           </p>
         </div>
       </div>
@@ -97,14 +97,15 @@ export const LiveProductsModule: React.FC<LiveProductsModuleProps> = ({ inventor
               <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Stok Jual</TableHead>
               <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Rusak/Hilang</TableHead>
               <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Harga Offline</TableHead>
-              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Harga Online</TableHead>
+              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Harga Shopee</TableHead>
+              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Harga TikTok</TableHead>
               <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {inventories.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-32 text-center text-muted-foreground text-sm">
+                <TableCell colSpan={8} className="h-32 text-center text-muted-foreground text-sm">
                   Belum ada stok produk di cabang ini.
                 </TableCell>
               </TableRow>
@@ -133,8 +134,11 @@ export const LiveProductsModule: React.FC<LiveProductsModuleProps> = ({ inventor
                   <TableCell className="font-bold text-emerald-700 text-sm font-mono">
                     {formatRupiah(inv.masterProduct.offlineSellingPrice)}
                   </TableCell>
-                  <TableCell className="font-bold text-indigo-700 text-sm font-mono">
-                    {formatRupiah(inv.masterProduct.onlineSellingPrice)}
+                  <TableCell className="font-bold text-primary text-sm font-mono">
+                    {formatRupiah(inv.masterProduct.shopeeSellingPrice)}
+                  </TableCell>
+                  <TableCell className="font-bold text-foreground text-sm font-mono">
+                    {formatRupiah(inv.masterProduct.tiktokSellingPrice)}
                   </TableCell>
                   <TableCell className="text-right">
                     {inv.qtyDamaged > 0 && (
@@ -190,9 +194,19 @@ export const LiveProductsModule: React.FC<LiveProductsModuleProps> = ({ inventor
                     </span>
                   </div>
 
-                  <div className="pt-2 border-t border-border/60 flex justify-between items-center text-xs">
-                    <span className="text-muted-foreground">Offline <span className="font-mono font-bold text-emerald-700 ml-1">{formatRupiah(inv.masterProduct.offlineSellingPrice)}</span></span>
-                    <span className="text-muted-foreground">Online <span className="font-mono font-bold text-indigo-700 ml-1">{formatRupiah(inv.masterProduct.onlineSellingPrice)}</span></span>
+                  <div className="pt-2 border-t border-border/60 space-y-1 text-xs">
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Offline</span>
+                      <span className="font-mono font-bold text-emerald-700">{formatRupiah(inv.masterProduct.offlineSellingPrice)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Shopee</span>
+                      <span className="font-mono font-bold text-primary">{formatRupiah(inv.masterProduct.shopeeSellingPrice)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">TikTok</span>
+                      <span className="font-mono font-bold text-foreground">{formatRupiah(inv.masterProduct.tiktokSellingPrice)}</span>
+                    </div>
                   </div>
                 </div>
 
