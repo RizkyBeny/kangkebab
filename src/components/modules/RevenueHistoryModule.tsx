@@ -3,11 +3,11 @@
 import React, { useState } from 'react';
 import { SalesTransaction, Branch, User } from '@/types';
 import { formatRupiah, formatDate } from '@/constants';
-import { History, Download, Filter, Eye, Store, Smartphone, Trash2, Loader2, AlertTriangle } from 'lucide-react';
+import { History, Download, Filter, Eye, Store, Smartphone, Trash2, Loader2, AlertTriangle, DollarSign, ShoppingBag, Music2 } from 'lucide-react';
 import { ReceiptModal } from './ReceiptModal';
 import { EditTransactionModal } from './EditTransactionModal';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -41,6 +41,7 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
   onRefresh,
 }) => {
   const [selectedChannel, setSelectedChannel] = useState<string>('ALL');
+  const [selectedPlatform, setSelectedPlatform] = useState<string>('ALL');
   const [selectedBranchId, setSelectedBranchId] = useState<string>('ALL');
   const [activeReceipt, setActiveReceipt] = useState<SalesTransaction | null>(null);
   const [editingTransaction, setEditingTransaction] = useState<SalesTransaction | null>(null);
@@ -60,11 +61,26 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
 
   const filteredTransactions = localTransactions.filter((t) => {
     if (selectedChannel !== 'ALL' && t.channel !== selectedChannel) return false;
+    if (selectedChannel === 'ONLINE' && selectedPlatform !== 'ALL' && t.platform !== selectedPlatform)
+      return false;
     if (currentUser.role === 'CABANG_STAFF' && t.branchId !== currentUser.branchId) return false;
     if (currentUser.role === 'HQ_ADMIN' && selectedBranchId !== 'ALL' && t.branchId !== selectedBranchId)
       return false;
     return true;
   });
+
+  const historyTotals = {
+    total: filteredTransactions.reduce((sum, t) => sum + t.totalAmount, 0),
+    offline: filteredTransactions
+      .filter((t) => t.channel === 'OFFLINE')
+      .reduce((sum, t) => sum + t.totalAmount, 0),
+    shopee: filteredTransactions
+      .filter((t) => t.platform === 'SHOPEE')
+      .reduce((sum, t) => sum + t.totalAmount, 0),
+    tiktok: filteredTransactions
+      .filter((t) => t.platform === 'TIKTOK')
+      .reduce((sum, t) => sum + t.totalAmount, 0),
+  };
 
   const handleExportCSV = () => {
     const headers = [
@@ -242,7 +258,13 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
           )}
 
           <div className="flex items-center space-x-1.5">
-            <Select value={selectedChannel} onValueChange={(val) => setSelectedChannel(val || '')}>
+            <Select
+              value={selectedChannel}
+              onValueChange={(val) => {
+                setSelectedChannel(val || '');
+                if (val !== 'ONLINE') setSelectedPlatform('ALL');
+              }}
+            >
               <SelectTrigger className="w-40 h-10 md:h-9 text-xs font-semibold bg-card shadow-sm border-border">
                 <SelectValue placeholder="Semua Channel" />
               </SelectTrigger>
@@ -253,12 +275,98 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
               </SelectContent>
             </Select>
           </div>
+
+          {selectedChannel === 'ONLINE' && (
+            <div className="flex items-center space-x-1.5">
+              <Select value={selectedPlatform} onValueChange={(val) => setSelectedPlatform(val || '')}>
+                <SelectTrigger className="w-40 h-10 md:h-9 text-xs font-semibold bg-card shadow-sm border-border">
+                  <SelectValue placeholder="Semua Platform" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL" className="text-xs">Semua Platform</SelectItem>
+                  <SelectItem value="SHOPEE" className="text-xs">Shopee</SelectItem>
+                  <SelectItem value="TIKTOK" className="text-xs">TikTok</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           
           <Button variant="outline" onClick={handleExportCSV} className="h-10 md:h-9 text-xs font-bold bg-card shadow-sm border-border">
             <Download className="w-4 h-4 mr-2" />
             Export CSV
           </Button>
         </div>
+      </div>
+
+      {/* Channel Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="shadow-sm border-border rounded-xl">
+          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+            <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Total Omzet</CardTitle>
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <DollarSign className="w-4 h-4" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl md:text-2xl font-black text-foreground font-mono tracking-tight">
+              {formatRupiah(historyTotals.total)}
+            </div>
+            <div className="flex items-center space-x-1 text-[11px] text-emerald-600 font-bold mt-1">
+              <span>{filteredTransactions.length} Transaksi</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm border-border rounded-xl">
+          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+            <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Channel Offline</CardTitle>
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <Store className="w-4 h-4" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl md:text-2xl font-black text-foreground font-mono tracking-tight">
+              {formatRupiah(historyTotals.offline)}
+            </div>
+            <div className="text-[11px] text-muted-foreground font-medium mt-1">
+              Penjualan langsung di kasir toko fisik
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm border-border rounded-xl">
+          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+            <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Channel Shopee</CardTitle>
+            <div className="w-8 h-8 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center">
+              <ShoppingBag className="w-4 h-4" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl md:text-2xl font-black text-foreground font-mono tracking-tight">
+              {formatRupiah(historyTotals.shopee)}
+            </div>
+            <div className="text-[11px] text-muted-foreground font-medium mt-1">
+              Penjualan via Shopee Marketplace
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm border-border rounded-xl">
+          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+            <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Channel TikTok</CardTitle>
+            <div className="w-8 h-8 rounded-lg bg-cyan-50 text-cyan-600 flex items-center justify-center">
+              <Music2 className="w-4 h-4" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl md:text-2xl font-black text-foreground font-mono tracking-tight">
+              {formatRupiah(historyTotals.tiktok)}
+            </div>
+            <div className="text-[11px] text-muted-foreground font-medium mt-1">
+              Penjualan via TikTok Shop
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Bulk Selection Toolbar */}

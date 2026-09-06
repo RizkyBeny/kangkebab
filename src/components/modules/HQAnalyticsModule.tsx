@@ -8,10 +8,10 @@ import {
   PieChart,
   AlertOctagon,
   Store,
-  Smartphone,
   ShoppingBag,
   Percent,
   ArrowUpRight,
+  Music2,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -131,9 +131,9 @@ export const HQAnalyticsModule: React.FC<HQAnalyticsModuleProps> = ({ analytics,
       </div>
 
       {/* Channel Breakdown Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card className="shadow-sm border-border rounded-xl flex items-center justify-between p-5 flex-row">
-          <div className="space-y-2">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="shadow-sm border-border rounded-xl flex items-center justify-between p-5 flex-row gap-4">
+          <div className="space-y-2 min-w-0">
             <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] tracking-wider font-bold">
               CHANNEL OFFLINE
             </Badge>
@@ -142,20 +142,33 @@ export const HQAnalyticsModule: React.FC<HQAnalyticsModuleProps> = ({ analytics,
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">Penjualan langsung di kasir toko fisik</p>
           </div>
-          <Store className="w-12 h-12 md:w-16 md:h-16 text-emerald-500/10" />
+          <Store className="w-10 h-10 md:w-14 md:h-14 text-emerald-500/10 flex-shrink-0" />
         </Card>
 
-        <Card className="shadow-sm border-border rounded-xl flex items-center justify-between p-5 flex-row">
-          <div className="space-y-2">
-            <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[10px] tracking-wider font-bold">
-              CHANNEL ONLINE
+        <Card className="shadow-sm border-border rounded-xl flex items-center justify-between p-5 flex-row gap-4">
+          <div className="space-y-2 min-w-0">
+            <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200 text-[10px] tracking-wider font-bold">
+              CHANNEL SHOPEE
             </Badge>
             <div className="text-xl md:text-2xl font-bold text-foreground font-mono">
-              {formatRupiah(analytics.onlineRevenue)}
+              {formatRupiah(analytics.shopeeRevenue)}
             </div>
-            <p className="text-xs text-muted-foreground leading-relaxed">Penjualan online via Shopee / TikTok Shop</p>
+            <p className="text-xs text-muted-foreground leading-relaxed">Penjualan online via Shopee Marketplace</p>
           </div>
-          <Smartphone className="w-12 h-12 md:w-16 md:h-16 text-indigo-500/10" />
+          <ShoppingBag className="w-10 h-10 md:w-14 md:h-14 text-orange-500/10 flex-shrink-0" />
+        </Card>
+
+        <Card className="shadow-sm border-border rounded-xl flex items-center justify-between p-5 flex-row gap-4">
+          <div className="space-y-2 min-w-0">
+            <Badge variant="outline" className="bg-cyan-50 text-cyan-700 border-cyan-200 text-[10px] tracking-wider font-bold">
+              CHANNEL TIKTOK
+            </Badge>
+            <div className="text-xl md:text-2xl font-bold text-foreground font-mono">
+              {formatRupiah(analytics.tiktokRevenue)}
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">Penjualan online via TikTok Shop</p>
+          </div>
+          <Music2 className="w-10 h-10 md:w-14 md:h-14 text-cyan-500/10 flex-shrink-0" />
         </Card>
       </div>
 
@@ -175,6 +188,9 @@ export const HQAnalyticsModule: React.FC<HQAnalyticsModuleProps> = ({ analytics,
                   <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider py-4">Kode</TableHead>
                   <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Nama Cabang</TableHead>
                   <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Total Omzet</TableHead>
+                  <TableHead className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Offline</TableHead>
+                  <TableHead className="text-[11px] font-bold text-orange-600 uppercase tracking-wider">Shopee</TableHead>
+                  <TableHead className="text-[11px] font-bold text-cyan-600 uppercase tracking-wider">TikTok</TableHead>
                   <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Modal (COGS)</TableHead>
                   <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Margin Kotor</TableHead>
                   <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Transaksi</TableHead>
@@ -189,6 +205,9 @@ export const HQAnalyticsModule: React.FC<HQAnalyticsModuleProps> = ({ analytics,
                       <TableCell className="font-mono font-medium text-foreground/80 text-xs py-4">{b.branchCode}</TableCell>
                       <TableCell className="font-bold text-foreground text-sm">{b.branchName}</TableCell>
                       <TableCell className="font-bold text-foreground font-mono text-sm">{formatRupiah(b.revenue)}</TableCell>
+                      <TableCell className="text-emerald-600 font-mono text-xs">{formatRupiah(b.offlineRevenue)}</TableCell>
+                      <TableCell className="text-orange-600 font-mono text-xs">{formatRupiah(b.shopeeRevenue)}</TableCell>
+                      <TableCell className="text-cyan-600 font-mono text-xs">{formatRupiah(b.tiktokRevenue)}</TableCell>
                       <TableCell className="text-foreground/80 font-mono text-xs">{formatRupiah(b.cost)}</TableCell>
                       <TableCell>
                         <span className="font-bold text-emerald-600 font-mono text-sm">{formatRupiah(b.margin)}</span>
@@ -228,6 +247,18 @@ export const HQAnalyticsModule: React.FC<HQAnalyticsModuleProps> = ({ analytics,
                       <div className="flex justify-between items-center text-xs">
                         <span className="text-muted-foreground font-medium">Total Omzet</span>
                         <span className="font-mono text-foreground font-bold">{formatRupiah(b.revenue)}</span>
+                      </div>
+                      <div className="pt-1 border-t border-border/40 flex justify-between items-center text-xs">
+                        <span className="text-muted-foreground font-medium">Offline</span>
+                        <span className="font-mono text-emerald-700 font-bold">{formatRupiah(b.offlineRevenue)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-muted-foreground font-medium">Shopee</span>
+                        <span className="font-mono text-orange-700 font-bold">{formatRupiah(b.shopeeRevenue)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-muted-foreground font-medium">TikTok</span>
+                        <span className="font-mono text-cyan-700 font-bold">{formatRupiah(b.tiktokRevenue)}</span>
                       </div>
                       <div className="flex justify-between items-center text-xs">
                         <span className="text-muted-foreground font-medium">Modal (COGS)</span>

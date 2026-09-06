@@ -57,6 +57,8 @@ export async function getConsolidatedFinancials(filters?: {
   let totalCostOfGoods = 0;
   let onlineRevenue = 0;
   let offlineRevenue = 0;
+  let shopeeRevenue = 0;
+  let tiktokRevenue = 0;
 
   for (const tx of transactions) {
     totalRevenue += tx.totalAmount;
@@ -64,6 +66,11 @@ export async function getConsolidatedFinancials(filters?: {
 
     if (tx.channel === 'ONLINE') {
       onlineRevenue += tx.totalAmount;
+      if (tx.platform === 'SHOPEE') {
+        shopeeRevenue += tx.totalAmount;
+      } else if (tx.platform === 'TIKTOK') {
+        tiktokRevenue += tx.totalAmount;
+      }
     } else {
       offlineRevenue += tx.totalAmount;
     }
@@ -88,6 +95,15 @@ export async function getConsolidatedFinancials(filters?: {
     const rev = branchTxs.reduce((sum: number, t: SalesTransaction) => sum + t.totalAmount, 0);
     const cost = branchTxs.reduce((sum: number, t: SalesTransaction) => sum + t.totalCost, 0);
     const damaged = branchInvs.reduce((sum: number, i: BranchInventory) => sum + i.qtyDamaged, 0);
+    const offlineRev = branchTxs
+      .filter((t: SalesTransaction) => t.channel === 'OFFLINE')
+      .reduce((sum: number, t: SalesTransaction) => sum + t.totalAmount, 0);
+    const shopeeRev = branchTxs
+      .filter((t: SalesTransaction) => t.platform === 'SHOPEE')
+      .reduce((sum: number, t: SalesTransaction) => sum + t.totalAmount, 0);
+    const tiktokRev = branchTxs
+      .filter((t: SalesTransaction) => t.platform === 'TIKTOK')
+      .reduce((sum: number, t: SalesTransaction) => sum + t.totalAmount, 0);
 
     return {
       branchId: b.id,
@@ -98,6 +114,9 @@ export async function getConsolidatedFinancials(filters?: {
       margin: rev - cost,
       transactionCount: branchTxs.length,
       damagedCount: damaged,
+      offlineRevenue: offlineRev,
+      shopeeRevenue: shopeeRev,
+      tiktokRevenue: tiktokRev,
     };
   });
 
@@ -157,6 +176,8 @@ export async function getConsolidatedFinancials(filters?: {
     damagedGoodsValue,
     onlineRevenue,
     offlineRevenue,
+    shopeeRevenue,
+    tiktokRevenue,
     branchPerformance,
     productPerformance,
   };

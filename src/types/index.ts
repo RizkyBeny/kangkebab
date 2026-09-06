@@ -116,6 +116,8 @@ export interface ConsolidatedFinancials {
   damagedGoodsValue: number;
   onlineRevenue: number;
   offlineRevenue: number;
+  shopeeRevenue: number;
+  tiktokRevenue: number;
   branchPerformance: {
     branchId: string;
     branchName: string;
@@ -125,6 +127,9 @@ export interface ConsolidatedFinancials {
     margin: number;
     transactionCount: number;
     damagedCount: number;
+    offlineRevenue: number;
+    shopeeRevenue: number;
+    tiktokRevenue: number;
   }[];
   productPerformance: {
     masterProductId: string;
