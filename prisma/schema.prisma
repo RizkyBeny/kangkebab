@@ -21,6 +21,7 @@ model Branch {
   shipments         Shipment[]
   inventories       BranchInventory[]
   salesTransactions SalesTransaction[]
+  transactionCounters TransactionCounter[]
 }
 
 model User {
@@ -125,4 +126,14 @@ model AuditLog {
   entityId  String?
   details   String
   createdAt DateTime @default(now())
+}
+
+model TransactionCounter {
+  id         String   @id @default(uuid())
+  branchId   String
+  branch     Branch   @relation(fields: [branchId], references: [id])
+  date       String // YYYYMMDD
+  lastNumber Int      @default(0)
+
+  @@unique([branchId, date])
 }

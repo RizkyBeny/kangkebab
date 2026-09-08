@@ -3,6 +3,38 @@ import { sseBroadcaster } from '@/lib/sseEmitter';
 import { SalesTransaction, SalesChannel, OnlinePlatform } from '@/types';
 import { formatShortDate } from '@/constants';
 
+function isUniqueConstraintError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { code?: string }).code === 'P2002'
+  );
+}
+
+// Atomically reserve the next invoice sequence for a branch on a given date (YYYYMMDD).
+// If no counter row exists yet, it seeds from the actual MAX suffix already present in
+// SalesTransaction (so numbering survives deletions). A single INSERT ... ON CONFLICT DO
+// UPDATE claims a distinct number under a row lock and ALWAYS returns a row, so concurrent
+// requests never collide and never get skipped.
+async function getNextInvoiceSequence(branchId: string, branchCode: string, date: string): Promise<number> {
+  const rows: { seq: number }[] = await prisma.$queryRaw`
+    WITH existing_max AS (
+      SELECT COALESCE(MAX(NULLIF(SPLIT_PART("transactionNumber", '/', 4), '')::int), 0) AS mx
+      FROM "SalesTransaction"
+      WHERE "branchId" = ${branchId}
+        AND "transactionNumber" LIKE ${`INV/${branchCode}/${date}/%`}
+        AND SPLIT_PART("transactionNumber", '/', 4) ~ '^[0-9]+$'
+    )
+    INSERT INTO "TransactionCounter" ("id", "branchId", "date", "lastNumber")
+    SELECT gen_random_uuid(), ${branchId}, ${date}, mx + 1
+    FROM existing_max
+    ON CONFLICT ("branchId", "date")
+    DO UPDATE SET "lastNumber" = "TransactionCounter"."lastNumber" + 1
+    RETURNING "lastNumber" AS "seq"
+  `;
+  return Number(rows[0].seq);
+}
+
 export async function createSalesTransaction(data: {
   branchId: string;
   channel: SalesChannel;
@@ -31,27 +63,17 @@ export async function createSalesTransaction(data: {
   const branch = await prisma.branch.findUnique({ where: { id: data.branchId } });
   if (!branch) throw new Error('Cabang tidak ditemukan');
 
-  // Calculate invoice number: INV/CBG01/20260827/0001
+  // Invoice number format: INV/CBG01/20260827/0001
   const todayStr = formatShortDate(new Date());
-  const countToday = await prisma.salesTransaction.count({
-    where: {
-      branchId: data.branchId,
-      createdAt: {
-        gte: new Date(new Date().setHours(0, 0, 0, 0)),
-      },
-    },
-  });
-
-  const transactionNumber = `INV/${branch.code}/${todayStr}/${String(countToday + 1).padStart(4, '0')}`;
 
   let grandTotalAmount = 0;
   let grandTotalCost = 0;
   const transactionItemsData: { masterProductId: string; qty: number; sellingPrice: number; costPrice: number }[] = [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const operations: any[] = [];
+  const baseOperations: any[] = [];
 
-  // Validate inventory & calculate totals atomically outside the main transaction array (using individual reads)
-  // This avoids Interactive Transaction limits on Supabase PgBouncer
+  // Validate inventory & calculate totals outside the main transaction array (using individual reads).
+  // This avoids Interactive Transaction limits on Supabase PgBouncer.
   for (const cartItem of data.items) {
     const inventory = await prisma.branchInventory.findUnique({
       where: {
@@ -91,7 +113,7 @@ export async function createSalesTransaction(data: {
     });
 
     // Atomically decrement stock
-    operations.push(
+    baseOperations.push(
       prisma.branchInventory.update({
         where: { id: inventory.id },
         data: {
@@ -105,65 +127,80 @@ export async function createSalesTransaction(data: {
   const finalTotalAmount =
     data.channel === 'ONLINE' ? (data.ecommerceActualPrice ?? grandTotalAmount) : grandTotalAmount;
 
-  // Create SalesTransaction record
-  operations.push(
-    prisma.salesTransaction.create({
-      data: {
-        transactionNumber,
-        branchId: data.branchId,
-        channel: data.channel,
-        platform: data.channel === 'ONLINE' ? data.platform : 'NONE',
-        customerName: data.customerName,
-        customerPhone: data.customerPhone,
-        paymentStatus: data.paymentStatus,
-        paymentMethod: data.paymentMethod,
-        ecommerceActualPrice: data.channel === 'ONLINE' ? data.ecommerceActualPrice : null,
-        totalAmount: finalTotalAmount,
-        totalCost: grandTotalCost,
-        items: {
-          create: transactionItemsData,
-        },
-      },
-      include: {
-        branch: true,
-        items: {
-          include: {
-            masterProduct: true,
+  // Reserve the invoice number atomically, then create the transaction. Retry on a unique
+  // violation as a safety net; a failed batch rolls back (stock is untouched), so re-running
+  // with a freshly reserved number is safe.
+  const MAX_ATTEMPTS = 3;
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const seq = await getNextInvoiceSequence(branch.id, branch.code, todayStr);
+      const transactionNumber = `INV/${branch.code}/${todayStr}/${String(seq).padStart(4, '0')}`;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const operations: any[] = [
+        ...baseOperations,
+        // Create SalesTransaction record
+        prisma.salesTransaction.create({
+          data: {
+            transactionNumber,
+            branchId: data.branchId,
+            channel: data.channel,
+            platform: data.channel === 'ONLINE' ? data.platform : 'NONE',
+            customerName: data.customerName,
+            customerPhone: data.customerPhone,
+            paymentStatus: data.paymentStatus,
+            paymentMethod: data.paymentMethod,
+            ecommerceActualPrice: data.channel === 'ONLINE' ? data.ecommerceActualPrice : null,
+            totalAmount: finalTotalAmount,
+            totalCost: grandTotalCost,
+            items: {
+              create: transactionItemsData,
+            },
           },
-        },
-      },
-    })
-  );
+          include: {
+            branch: true,
+            items: {
+              include: {
+                masterProduct: true,
+              },
+            },
+          },
+        }),
+        // Audit Log
+        prisma.auditLog.create({
+          data: {
+            userId: data.userId,
+            userName: data.userName,
+            action: 'CREATE_SALES_TRANSACTION',
+            entity: 'SalesTransaction',
+            // entityId can't be chained after execution in a Sequential Transaction batch,
+            // so we save the transaction number instead.
+            details: `Transaksi ${transactionNumber} (${data.channel}${data.platform ? ' - ' + data.platform : ''}) diselesaikan di ${branch.name}. Total: Rp ${finalTotalAmount}`,
+          },
+        }),
+      ];
 
-  // Audit Log
-  operations.push(
-    prisma.auditLog.create({
-      data: {
-        userId: data.userId,
-        userName: data.userName,
-        action: 'CREATE_SALES_TRANSACTION',
-        entity: 'SalesTransaction',
-        // entityId will be set after execution, but for Sequential Transactions we can't easily chain IDs.
-        // We will leave entityId blank or generate a UUID beforehand if needed.
-        // For simplicity, we just save the transaction number.
-        details: `Transaksi ${transactionNumber} (${data.channel}${data.platform ? ' - ' + data.platform : ''}) diselesaikan di ${branch.name}. Total: Rp ${finalTotalAmount}`,
-      },
-    })
-  );
+      // Execute all write operations as a sequential transaction
+      const results = await prisma.$transaction(operations);
+      const createdTx = results[results.length - 2]; // The salesTransaction.create is second to last
 
-  // Execute all write operations as a sequential transaction
-  const results = await prisma.$transaction(operations);
-  const createdTx = results[results.length - 2]; // The salesTransaction.create is second to last
+      // Emit real-time stock update via SSE
+      sseBroadcaster.emit('SALES_UPDATED', {
+        type: 'TRANSACTION_CREATED',
+        branchId: data.branchId,
+        transactionNumber,
+        timestamp: new Date().toISOString(),
+      });
 
-  // Emit real-time stock update via SSE
-  sseBroadcaster.emit('SALES_UPDATED', {
-    type: 'TRANSACTION_CREATED',
-    branchId: data.branchId,
-    transactionNumber,
-    timestamp: new Date().toISOString(),
-  });
-
-  return createdTx as unknown as SalesTransaction;
+      return createdTx as unknown as SalesTransaction;
+    } catch (error) {
+      lastError = error;
+      if (isUniqueConstraintError(error) && attempt < MAX_ATTEMPTS) continue;
+      throw error;
+    }
+  }
+  throw lastError;
 }
 
 export async function getSalesTransactions(filters?: {

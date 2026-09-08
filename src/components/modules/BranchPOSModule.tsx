@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { BranchInventory, SalesTransaction, SalesChannel, OnlinePlatform, User, MasterProduct } from '@/types';
 import { formatRupiah } from '@/constants';
 import { ShoppingBag, ShoppingCart, Plus, Minus, Trash2, Store, Smartphone, AlertCircle, X, Settings2 } from 'lucide-react';
@@ -42,6 +42,7 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
+  const submittingRef = useRef(false);
 
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -123,6 +124,7 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
 
   const handleCheckout = async () => {
     if (cart.length === 0) return;
+    if (submittingRef.current) return;
     if (!currentUser.branchId) {
       setErrorMsg('User tidak terhubung ke cabang manapun');
       return;
@@ -138,6 +140,7 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
       return;
     }
 
+    submittingRef.current = true;
     setLoading(true);
     setErrorMsg('');
 
@@ -170,6 +173,7 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : 'Gagal memproses transaksi POS');
     } finally {
+      submittingRef.current = false;
       setLoading(false);
     }
   };
