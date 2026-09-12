@@ -29,6 +29,7 @@ export const TAB_LABELS: Record<TabType, string> = {
   pos: 'POS Kasir Multichannel',
   live_products: 'Katalog Live Product',
   inventory_global: 'Stok Opname Cabang',
+  reseller_prices: 'Harga Reseller',
   history: 'Riwayat Transaksi',
 };
 

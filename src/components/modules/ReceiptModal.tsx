@@ -3,7 +3,7 @@
 import React from 'react';
 import { SalesTransaction } from '@/types';
 import { formatRupiah, formatDate } from '@/constants';
-import { Download, CheckCircle2, Receipt } from 'lucide-react';
+import { CheckCircle2, Download } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Button } from '@/components/ui/button';
@@ -63,6 +63,10 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ transaction, onClose
     currentY += 4;
     doc.text(`Channel  : ${transaction.channel} (${transaction.platform || 'OFFLINE'})`, 5, currentY);
     currentY += 4;
+    if (transaction.isReseller) {
+      doc.text(`Reseller : YA`, 5, currentY);
+      currentY += 4;
+    }
     doc.text(`Customer : ${transaction.customerName || '-'} (${transaction.customerPhone || '-'})`, 5, currentY);
     currentY += 4;
     doc.text(`Payment  : ${transaction.paymentMethod || '-'} (${transaction.paymentStatus || '-'})`, 5, currentY);
@@ -95,17 +99,27 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ transaction, onClose
 
     doc.line(5, finalY + 2, 75, finalY + 2);
 
+    // Discount (reseller) line before total
+    let totalY = finalY + 8;
+    if (transaction.isReseller && transaction.discountPercent > 0) {
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Diskon ${transaction.discountPercent}%:`, 5, finalY + 7);
+      doc.text(`-${formatRupiah(transaction.discountAmount)}`, 75, finalY + 7, { align: 'right' });
+      totalY = finalY + 11;
+    }
+
     // Total Amount
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
-    doc.text('TOTAL:', 5, finalY + 8);
-    doc.text(formatRupiah(transaction.totalAmount), 75, finalY + 8, { align: 'right' });
+    doc.text('TOTAL:', 5, totalY);
+    doc.text(formatRupiah(transaction.totalAmount), 75, totalY, { align: 'right' });
 
     // Footer
     doc.setFontSize(7);
     doc.setFont('helvetica', 'italic');
-    doc.text('Terima kasih atas kunjungan Anda!', 40, finalY + 16, { align: 'center' });
-    doc.text('Powered by KangKebab Multichannel', 40, finalY + 20, { align: 'center' });
+    doc.text('Terima kasih atas kunjungan Anda!', 40, totalY + 8, { align: 'center' });
+    doc.text('Powered by KangKebab Multichannel', 40, totalY + 12, { align: 'center' });
 
     doc.save(`Struk_${transaction.transactionNumber.replace(/\//g, '_')}.pdf`);
   };
@@ -115,68 +129,80 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ transaction, onClose
       open={true}
       onOpenChange={(open) => !open && onClose()}
       title="Rincian Transaksi"
-      icon={<Receipt className="w-5 h-5 text-foreground/80" />}
     >
-      <div className="space-y-4">
-        <div className="flex flex-col items-center justify-center p-4 bg-emerald-50 rounded-xl border border-emerald-100 mb-2">
-          <div className="w-10 h-10 rounded-full bg-card text-emerald-600 border border-emerald-200 flex items-center justify-center shadow-sm mb-3">
-            <CheckCircle2 className="w-6 h-6" />
-          </div>
-          <span className="font-mono font-bold text-lg text-emerald-900">{transaction.transactionNumber}</span>
-          <span className="text-xs font-semibold text-emerald-700 mt-1">Transaksi Berhasil Disimpan</span>
+      <div className="space-y-5">
+        <div className="flex flex-col items-center rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-5 text-center">
+          <span className="flex size-10 items-center justify-center rounded-full bg-card text-emerald-600">
+            <CheckCircle2 className="size-5" />
+          </span>
+          <span className="mt-2 font-mono text-lg font-semibold text-emerald-900">{transaction.transactionNumber}</span>
+          <span className="text-xs text-emerald-700 mt-0.5">Transaksi Berhasil Disimpan</span>
         </div>
 
         {/* Receipt Preview Box */}
-        <div className="bg-muted/50 rounded-xl p-4 border border-border space-y-3 font-mono text-xs shadow-inner">
-          <div className="border-b border-border pb-2 flex items-center justify-between">
-            <span className="text-muted-foreground font-sans font-medium">Channel</span>
-            <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-sans font-bold">
-              {transaction.channel}
+        <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-4 font-mono text-xs">
+          <div className="flex items-center justify-between border-b border-border pb-2">
+            <span className="font-sans font-medium text-muted-foreground">Channel</span>
+            <span className="flex items-center gap-1">
+              {transaction.isReseller && (
+                <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-sans font-semibold text-amber-800">
+                  Reseller
+                </span>
+              )}
+              <span className="rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-sans font-semibold text-emerald-800">
+                {transaction.channel}
+              </span>
             </span>
           </div>
 
-          <div className="space-y-1 text-foreground/80 text-[11px]">
+          <div className="space-y-1 text-[11px] text-foreground/80">
             <div className="flex justify-between">
-              <span>Cabang:</span>
-              <span className="font-bold text-foreground">{transaction.branch.name}</span>
+              <span>Cabang</span>
+              <span className="font-semibold text-foreground">{transaction.branch.name}</span>
             </div>
             <div className="flex justify-between">
-              <span>Waktu:</span>
-              <span className="font-bold text-foreground">{formatDate(transaction.createdAt)}</span>
+              <span>Waktu</span>
+              <span className="font-semibold text-foreground">{formatDate(transaction.createdAt)}</span>
             </div>
             <div className="flex justify-between">
-              <span>Customer:</span>
-              <span className="font-bold text-foreground">{transaction.customerName || '-'} ({transaction.customerPhone || '-'})</span>
+              <span>Customer</span>
+              <span className="font-semibold text-foreground">{transaction.customerName || '-'} ({transaction.customerPhone || '-'})</span>
             </div>
             <div className="flex justify-between">
-              <span>Pembayaran:</span>
-              <span className="font-bold text-foreground">{transaction.paymentMethod || '-'} - {transaction.paymentStatus || '-'}</span>
+              <span>Pembayaran</span>
+              <span className="font-semibold text-foreground">{transaction.paymentMethod || '-'} - {transaction.paymentStatus || '-'}</span>
             </div>
           </div>
 
-          <div className="border-t border-border pt-3 space-y-2">
+          <div className="space-y-2 border-t border-border pt-3">
             {transaction.items.map((item) => (
               <div key={item.id} className="flex justify-between text-[11px]">
-                <span>
-                  {item.masterProduct.name} ({item.qty}x)
-                </span>
-                <span className="font-bold text-foreground">{formatRupiah(item.qty * item.sellingPrice)}</span>
+                <span>{item.masterProduct.name} ({item.qty}x)</span>
+                <span className="font-semibold text-foreground tabular-nums">{formatRupiah(item.qty * item.sellingPrice)}</span>
               </div>
             ))}
           </div>
 
-          <div className="border-t border-border pt-3 mt-2 flex justify-between text-xs font-bold text-foreground">
-            <span>TOTAL PEMBAYARAN</span>
-            <span className="text-emerald-700 text-sm font-mono">{formatRupiah(transaction.totalAmount)}</span>
+          <div className="mt-2 space-y-1 border-t border-border pt-3">
+            {transaction.isReseller && transaction.discountPercent > 0 && (
+              <div className="flex justify-between text-[11px]">
+                <span>Diskon ({transaction.discountPercent}%)</span>
+                <span className="font-semibold tabular-nums text-rose-600">-{formatRupiah(transaction.discountAmount)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-xs font-semibold text-foreground">
+              <span>TOTAL PEMBAYARAN</span>
+              <span className="font-semibold tabular-nums text-emerald-700">{formatRupiah(transaction.totalAmount)}</span>
+            </div>
           </div>
         </div>
 
-        <div className="pt-2 flex gap-3">
-          <Button variant="outline" onClick={onClose} className="flex-1 h-11 md:h-10 text-xs font-bold">
+        <div className="flex gap-3 pt-2">
+          <Button variant="outline" onClick={onClose} className="flex-1">
             Tutup
           </Button>
-          <Button onClick={downloadPDFReceipt} className="flex-1 h-11 md:h-10 text-xs font-bold bg-slate-900 text-white hover:bg-slate-800">
-            <Download className="w-4 h-4 mr-2" />
+          <Button onClick={downloadPDFReceipt} className="flex-1">
+            <Download />
             Unduh Struk PDF
           </Button>
         </div>

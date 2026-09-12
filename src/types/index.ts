@@ -8,6 +8,7 @@ export type TabType =
   | 'pos'
   | 'live_products'
   | 'inventory_global'
+  | 'reseller_prices'
   | 'history';
 
 export type SalesChannel = 'ONLINE' | 'OFFLINE';
@@ -15,6 +16,10 @@ export type SalesChannel = 'ONLINE' | 'OFFLINE';
 export type OnlinePlatform = 'SHOPEE' | 'TIKTOK' | 'NONE';
 
 export type ShipmentStatus = 'DIKIRIM' | 'DITERIMA';
+
+export type BelanjaOrderStatus = 'BARU' | 'DIKONFIRMASI' | 'SELESAI' | 'BATAL';
+
+export type BelanjaFulfillment = 'PICKUP' | 'COURIER';
 
 export interface Branch {
   id: string;
@@ -76,6 +81,7 @@ export interface BranchInventory {
   masterProduct: MasterProduct;
   qtyAvailable: number;
   qtyDamaged: number;
+  resellerSellingPrice?: number | null;
 }
 
 export interface SalesTransactionItem {
@@ -86,6 +92,36 @@ export interface SalesTransactionItem {
   qty: number;
   sellingPrice: number;
   costPrice: number;
+}
+
+export interface BelanjaOrderItem {
+  id: string;
+  orderId: string;
+  masterProductId: string;
+  masterProduct: MasterProduct;
+  qty: number;
+  unitPrice: number;
+  costPrice: number;
+}
+
+export interface BelanjaOrder {
+  id: string;
+  orderNumber: string;
+  branchId: string;
+  branch: Branch;
+  customerName: string;
+  customerPhone: string;
+  address?: string | null;
+  fulfillment: BelanjaFulfillment;
+  deliveryFee: number;
+  notes?: string | null;
+  status: BelanjaOrderStatus;
+  totalAmount: number;
+  totalCost: number;
+  transactionNumber?: string | null;
+  confirmedAt?: Date | string | null;
+  createdAt: Date | string;
+  items: BelanjaOrderItem[];
 }
 
 export interface SalesTransaction {
@@ -100,6 +136,9 @@ export interface SalesTransaction {
   paymentStatus: string;
   paymentMethod: string;
   ecommerceActualPrice?: number | null;
+  isReseller: boolean;
+  discountPercent: number;
+  discountAmount: number;
   totalAmount: number;
   totalCost: number;
   createdAt: Date | string;

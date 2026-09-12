@@ -4,16 +4,23 @@ import React from 'react';
 import { ConsolidatedFinancials, User } from '@/types';
 import { formatRupiah } from '@/constants';
 import {
-  DollarSign,
-  PieChart,
   AlertOctagon,
-  Store,
-  ShoppingBag,
-  Percent,
-  ArrowUpRight,
+  DollarSign,
+  LayoutDashboard,
+  Loader2,
   Music2,
+  Percent,
+  PieChart,
+  ShoppingBag,
+  Store,
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -23,199 +30,226 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { PageHeader } from '@/components/shared/PageHeader';
+import { EmptyState } from '@/components/shared/EmptyState';
 
 interface HQAnalyticsModuleProps {
   analytics: ConsolidatedFinancials | null;
   currentUser: User;
 }
 
+const LOW_STOCK_THRESHOLD = 5;
+
+function stockBadge(remaining: number) {
+  if (remaining <= 0) {
+    return <Badge className="border-transparent bg-rose-100 text-rose-700">Habis</Badge>;
+  }
+  if (remaining <= LOW_STOCK_THRESHOLD) {
+    return <Badge className="border-transparent bg-amber-100 text-amber-700">Menipis</Badge>;
+  }
+  return null;
+}
+
+function stockColor(remaining: number) {
+  if (remaining <= 0) return 'text-rose-600';
+  if (remaining <= LOW_STOCK_THRESHOLD) return 'text-amber-600';
+  return 'text-foreground';
+}
+
+const SectionTitle: React.FC<{ icon: React.ComponentType<{ className?: string }>; children: React.ReactNode }> = ({ icon: Icon, children }) => (
+  <h3 className="flex items-center gap-2 text-base font-semibold">
+    <Icon className="size-4 text-muted-foreground" />
+    {children}
+  </h3>
+);
+
 export const HQAnalyticsModule: React.FC<HQAnalyticsModuleProps> = ({ analytics, currentUser }) => {
   if (!analytics) {
     return (
-      <Card className="p-8 text-center text-xs text-muted-foreground border-dashed border-border">
-        Memuat data analitik konsolidasi...
-      </Card>
+      <EmptyState
+        icon={Loader2}
+        title="Memuat data analitik..."
+        description="Konsolidasi finansial dan stok sedang disiapkan."
+      />
     );
   }
 
+  const description =
+    currentUser.role === 'HQ_ADMIN'
+      ? 'Konsolidasi performa keuangan, omzet, margin kotor, dan operasional stok keseluruhan cabang.'
+      : `Performa keuangan, omzet, dan margin kotor untuk ${currentUser.branch?.name || 'Cabang'}.`;
+
   return (
     <div className="space-y-6 md:space-y-8">
-      {/* Header Welcome Area */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div>
-          <h2 className="text-xl md:text-2xl font-bold text-foreground tracking-tight leading-tight">
-            Welcome back, {currentUser.name.split(' ')[0]}
-          </h2>
-          <p className="text-xs md:text-sm text-muted-foreground mt-1.5 font-medium leading-relaxed max-w-xl">
-            {currentUser.role === 'HQ_ADMIN' 
-              ? 'Konsolidasi performa keuangan, omzet, margin kotor, dan operasional stok keseluruhan cabang.' 
-              : `Performa keuangan, omzet, dan margin kotor untuk ${currentUser.branch?.name || 'Cabang'}.`}
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title={`Welcome back, ${currentUser.name.split(' ')[0]}`}
+        description={description}
+        icon={LayoutDashboard}
+      />
 
       {/* Metric Cards Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Omzet */}
-        <Card className="shadow-sm border-border rounded-xl">
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Total Omzet</CardTitle>
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <DollarSign className="w-4 h-4" />
-            </div>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total Omzet
+            </CardTitle>
+            <CardAction>
+              <DollarSign className="size-4 text-muted-foreground" />
+            </CardAction>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-black text-foreground font-mono tracking-tight">
+          <CardContent className="space-y-1">
+            <div className="text-2xl font-bold tracking-tight tabular-nums">
               {formatRupiah(analytics.totalRevenue)}
             </div>
-            <div className="flex items-center space-x-1 text-[11px] text-emerald-600 font-bold mt-1">
-              <ArrowUpRight className="w-3.5 h-3.5" />
-              <span>{analytics.totalTransactionsCount} Transaksi Sukses</span>
-            </div>
+            <p className="text-xs text-muted-foreground">
+              {analytics.totalTransactionsCount} transaksi sukses
+            </p>
           </CardContent>
         </Card>
 
-        {/* Total Modal (COGS) */}
-        <Card className="shadow-sm border-border rounded-xl">
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Modal (COGS)</CardTitle>
-            <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
-              <ShoppingBag className="w-4 h-4" />
-            </div>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Modal (COGS)
+            </CardTitle>
+            <CardAction>
+              <ShoppingBag className="size-4 text-muted-foreground" />
+            </CardAction>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-black text-foreground font-mono tracking-tight">
+          <CardContent className="space-y-1">
+            <div className="text-2xl font-bold tracking-tight tabular-nums">
               {formatRupiah(analytics.totalCostOfGoods)}
             </div>
-            <div className="text-[11px] text-muted-foreground font-medium mt-1">
+            <p className="text-xs text-muted-foreground">
               Total biaya pokok produk terjual
-            </div>
+            </p>
           </CardContent>
         </Card>
 
-        {/* Gross Margin */}
-        <Card className="shadow-sm border-border rounded-xl">
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Gross Margin</CardTitle>
-            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
-              <Percent className="w-4 h-4" />
-            </div>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Gross Margin
+            </CardTitle>
+            <CardAction>
+              <Percent className="size-4 text-muted-foreground" />
+            </CardAction>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-black text-indigo-600 font-mono tracking-tight">
+          <CardContent className="space-y-1">
+            <div className="text-2xl font-bold tracking-tight tabular-nums">
               {formatRupiah(analytics.grossMarginAmount)}
             </div>
-            <div className="text-[11px] text-indigo-600 font-bold mt-1">
-              Margin Kotor: {analytics.grossMarginPercentage.toFixed(1)}%
-            </div>
+            <p className="text-xs text-emerald-600 font-medium">
+              Margin kotor {analytics.grossMarginPercentage.toFixed(1)}%
+            </p>
           </CardContent>
         </Card>
 
-        {/* Barang Rusak */}
-        <Card className="shadow-sm border-border rounded-xl">
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Barang Rusak</CardTitle>
-            <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
-              <AlertOctagon className="w-4 h-4" />
-            </div>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Barang Rusak
+            </CardTitle>
+            <CardAction>
+              <AlertOctagon className="size-4 text-muted-foreground" />
+            </CardAction>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-black text-rose-600 font-mono tracking-tight">
+          <CardContent className="space-y-1">
+            <div className="text-2xl font-bold tracking-tight tabular-nums">
               {analytics.totalDamagedItemsCount} unit
             </div>
-            <div className="text-[11px] text-rose-500 font-medium mt-1">
-              Nilai Modal: {formatRupiah(analytics.damagedGoodsValue)}
-            </div>
+            <p className="text-xs text-muted-foreground">
+              Nilai modal {formatRupiah(analytics.damagedGoodsValue)}
+            </p>
           </CardContent>
         </Card>
       </div>
 
       {/* Channel Breakdown Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="shadow-sm border-border rounded-xl flex items-center justify-between p-5 flex-row gap-4">
-          <div className="space-y-2 min-w-0">
-            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] tracking-wider font-bold">
-              CHANNEL OFFLINE
-            </Badge>
-            <div className="text-xl md:text-2xl font-bold text-foreground font-mono">
-              {formatRupiah(analytics.offlineRevenue)}
+        <Card>
+          <CardContent className="flex items-center justify-between gap-4">
+            <div className="space-y-1 min-w-0">
+              <p className="text-xs font-medium text-muted-foreground">Channel Offline</p>
+              <div className="text-xl md:text-2xl font-bold tracking-tight tabular-nums text-emerald-600">
+                {formatRupiah(analytics.offlineRevenue)}
+              </div>
+              <p className="text-xs text-muted-foreground">Penjualan langsung di kasir toko fisik</p>
             </div>
-            <p className="text-xs text-muted-foreground leading-relaxed">Penjualan langsung di kasir toko fisik</p>
-          </div>
-          <Store className="w-10 h-10 md:w-14 md:h-14 text-emerald-500/10 flex-shrink-0" />
+            <Store className="size-8 md:size-10 text-emerald-600/20 shrink-0" />
+          </CardContent>
         </Card>
 
-        <Card className="shadow-sm border-border rounded-xl flex items-center justify-between p-5 flex-row gap-4">
-          <div className="space-y-2 min-w-0">
-            <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200 text-[10px] tracking-wider font-bold">
-              CHANNEL SHOPEE
-            </Badge>
-            <div className="text-xl md:text-2xl font-bold text-foreground font-mono">
-              {formatRupiah(analytics.shopeeRevenue)}
+        <Card>
+          <CardContent className="flex items-center justify-between gap-4">
+            <div className="space-y-1 min-w-0">
+              <p className="text-xs font-medium text-muted-foreground">Channel Shopee</p>
+              <div className="text-xl md:text-2xl font-bold tracking-tight tabular-nums text-orange-600">
+                {formatRupiah(analytics.shopeeRevenue)}
+              </div>
+              <p className="text-xs text-muted-foreground">Penjualan online via Shopee Marketplace</p>
             </div>
-            <p className="text-xs text-muted-foreground leading-relaxed">Penjualan online via Shopee Marketplace</p>
-          </div>
-          <ShoppingBag className="w-10 h-10 md:w-14 md:h-14 text-orange-500/10 flex-shrink-0" />
+            <ShoppingBag className="size-8 md:size-10 text-orange-600/20 shrink-0" />
+          </CardContent>
         </Card>
 
-        <Card className="shadow-sm border-border rounded-xl flex items-center justify-between p-5 flex-row gap-4">
-          <div className="space-y-2 min-w-0">
-            <Badge variant="outline" className="bg-cyan-50 text-cyan-700 border-cyan-200 text-[10px] tracking-wider font-bold">
-              CHANNEL TIKTOK
-            </Badge>
-            <div className="text-xl md:text-2xl font-bold text-foreground font-mono">
-              {formatRupiah(analytics.tiktokRevenue)}
+        <Card>
+          <CardContent className="flex items-center justify-between gap-4">
+            <div className="space-y-1 min-w-0">
+              <p className="text-xs font-medium text-muted-foreground">Channel TikTok</p>
+              <div className="text-xl md:text-2xl font-bold tracking-tight tabular-nums text-cyan-600">
+                {formatRupiah(analytics.tiktokRevenue)}
+              </div>
+              <p className="text-xs text-muted-foreground">Penjualan online via TikTok Shop</p>
             </div>
-            <p className="text-xs text-muted-foreground leading-relaxed">Penjualan online via TikTok Shop</p>
-          </div>
-          <Music2 className="w-10 h-10 md:w-14 md:h-14 text-cyan-500/10 flex-shrink-0" />
+            <Music2 className="size-8 md:size-10 text-cyan-600/20 shrink-0" />
+          </CardContent>
         </Card>
       </div>
 
       {/* Branch Performance Comparison (HQ Only) */}
       {currentUser.role === 'HQ_ADMIN' && (
         <div className="space-y-4">
-          <h3 className="text-base font-bold text-foreground flex items-center gap-2">
-            <PieChart className="w-5 h-5 text-foreground/80" />
-            Performa Cabang Operasional
-          </h3>
-          
+          <SectionTitle icon={PieChart}>Performa Cabang Operasional</SectionTitle>
+
           {/* Desktop Table */}
-          <Card className="shadow-sm border-border hidden md:block rounded-xl overflow-hidden">
+          <Card className="hidden md:block overflow-hidden">
             <Table>
-              <TableHeader className="bg-muted/50 border-b border-border/50">
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider py-4">Kode</TableHead>
-                  <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Nama Cabang</TableHead>
-                  <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Total Omzet</TableHead>
-                  <TableHead className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Offline</TableHead>
-                  <TableHead className="text-[11px] font-bold text-orange-600 uppercase tracking-wider">Shopee</TableHead>
-                  <TableHead className="text-[11px] font-bold text-cyan-600 uppercase tracking-wider">TikTok</TableHead>
-                  <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Modal (COGS)</TableHead>
-                  <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Margin Kotor</TableHead>
-                  <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Transaksi</TableHead>
-                  <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Brg. Rusak</TableHead>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Kode</TableHead>
+                  <TableHead>Nama Cabang</TableHead>
+                  <TableHead>Total Omzet</TableHead>
+                  <TableHead>Offline</TableHead>
+                  <TableHead>Shopee</TableHead>
+                  <TableHead>TikTok</TableHead>
+                  <TableHead>Modal (COGS)</TableHead>
+                  <TableHead>Margin Kotor</TableHead>
+                  <TableHead>Transaksi</TableHead>
+                  <TableHead>Brg. Rusak</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {analytics.branchPerformance.map((b) => {
                   const marginPct = b.revenue > 0 ? (b.margin / b.revenue) * 100 : 0;
                   return (
-                    <TableRow key={b.branchId} className="group transition-colors hover:bg-muted/30">
-                      <TableCell className="font-mono font-medium text-foreground/80 text-xs py-4">{b.branchCode}</TableCell>
-                      <TableCell className="font-bold text-foreground text-sm">{b.branchName}</TableCell>
-                      <TableCell className="font-bold text-foreground font-mono text-sm">{formatRupiah(b.revenue)}</TableCell>
-                      <TableCell className="text-emerald-600 font-mono text-xs">{formatRupiah(b.offlineRevenue)}</TableCell>
-                      <TableCell className="text-orange-600 font-mono text-xs">{formatRupiah(b.shopeeRevenue)}</TableCell>
-                      <TableCell className="text-cyan-600 font-mono text-xs">{formatRupiah(b.tiktokRevenue)}</TableCell>
-                      <TableCell className="text-foreground/80 font-mono text-xs">{formatRupiah(b.cost)}</TableCell>
+                    <TableRow key={b.branchId}>
+                      <TableCell className="font-mono text-xs text-foreground/70">{b.branchCode}</TableCell>
+                      <TableCell className="font-medium">{b.branchName}</TableCell>
+                      <TableCell className="font-semibold tabular-nums">{formatRupiah(b.revenue)}</TableCell>
+                      <TableCell className="text-emerald-600 tabular-nums">{formatRupiah(b.offlineRevenue)}</TableCell>
+                      <TableCell className="text-orange-600 tabular-nums">{formatRupiah(b.shopeeRevenue)}</TableCell>
+                      <TableCell className="text-cyan-600 tabular-nums">{formatRupiah(b.tiktokRevenue)}</TableCell>
+                      <TableCell className="text-foreground/70 tabular-nums">{formatRupiah(b.cost)}</TableCell>
                       <TableCell>
-                        <span className="font-bold text-emerald-600 font-mono text-sm">{formatRupiah(b.margin)}</span>
-                        <span className="text-[11px] text-indigo-600 font-semibold ml-2">({marginPct.toFixed(1)}%)</span>
+                        <span className="font-semibold tabular-nums text-emerald-600">{formatRupiah(b.margin)}</span>
+                        <span className="ml-2 text-xs text-muted-foreground">({marginPct.toFixed(1)}%)</span>
                       </TableCell>
-                      <TableCell className="font-semibold text-foreground/80 text-xs">{b.transactionCount} tx</TableCell>
+                      <TableCell className="tabular-nums">{b.transactionCount} tx</TableCell>
                       <TableCell>
-                        <span className={`font-semibold text-xs ${b.damagedCount > 0 ? 'text-rose-600' : 'text-muted-foreground'}`}>
+                        <span className={`tabular-nums ${b.damagedCount > 0 ? 'text-rose-600 font-medium' : 'text-muted-foreground'}`}>
                           {b.damagedCount} unit
                         </span>
                       </TableCell>
@@ -231,44 +265,44 @@ export const HQAnalyticsModule: React.FC<HQAnalyticsModuleProps> = ({ analytics,
             {analytics.branchPerformance.map((b) => {
               const marginPct = b.revenue > 0 ? (b.margin / b.revenue) * 100 : 0;
               return (
-                <Card key={b.branchId} className="border-border shadow-sm rounded-xl">
-                  <CardContent className="p-4 space-y-3">
-                    <div className="flex justify-between items-start">
+                <Card key={b.branchId}>
+                  <CardContent className="space-y-3">
+                    <div className="flex items-start justify-between gap-2">
                       <div>
-                        <div className="font-bold text-foreground text-base">{b.branchName}</div>
-                        <div className="text-[11px] text-muted-foreground font-mono mt-0.5">Kode: {b.branchCode}</div>
+                        <div className="font-semibold">{b.branchName}</div>
+                        <div className="text-xs text-muted-foreground font-mono mt-0.5">Kode: {b.branchCode}</div>
                       </div>
-                      <Badge variant="outline" className={`${b.damagedCount > 0 ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-muted/50 text-muted-foreground'} text-[10px]`}>
+                      <Badge variant={b.damagedCount > 0 ? 'destructive' : 'secondary'}>
                         {b.damagedCount} Rusak
                       </Badge>
                     </div>
 
-                    <div className="bg-muted/50 rounded-lg p-3 space-y-2 border border-border/50">
-                      <div className="flex justify-between items-center text-xs">
-                        <span className="text-muted-foreground font-medium">Total Omzet</span>
-                        <span className="font-mono text-foreground font-bold">{formatRupiah(b.revenue)}</span>
+                    <div className="divide-y divide-border/70 text-sm">
+                      <div className="flex items-center justify-between py-1.5 first:pt-0">
+                        <span className="text-muted-foreground">Total Omzet</span>
+                        <span className="font-semibold tabular-nums">{formatRupiah(b.revenue)}</span>
                       </div>
-                      <div className="pt-1 border-t border-border/40 flex justify-between items-center text-xs">
-                        <span className="text-muted-foreground font-medium">Offline</span>
-                        <span className="font-mono text-emerald-700 font-bold">{formatRupiah(b.offlineRevenue)}</span>
+                      <div className="flex items-center justify-between py-1.5">
+                        <span className="text-muted-foreground">Offline</span>
+                        <span className="font-medium tabular-nums text-emerald-600">{formatRupiah(b.offlineRevenue)}</span>
                       </div>
-                      <div className="flex justify-between items-center text-xs">
-                        <span className="text-muted-foreground font-medium">Shopee</span>
-                        <span className="font-mono text-orange-700 font-bold">{formatRupiah(b.shopeeRevenue)}</span>
+                      <div className="flex items-center justify-between py-1.5">
+                        <span className="text-muted-foreground">Shopee</span>
+                        <span className="font-medium tabular-nums text-orange-600">{formatRupiah(b.shopeeRevenue)}</span>
                       </div>
-                      <div className="flex justify-between items-center text-xs">
-                        <span className="text-muted-foreground font-medium">TikTok</span>
-                        <span className="font-mono text-cyan-700 font-bold">{formatRupiah(b.tiktokRevenue)}</span>
+                      <div className="flex items-center justify-between py-1.5">
+                        <span className="text-muted-foreground">TikTok</span>
+                        <span className="font-medium tabular-nums text-cyan-600">{formatRupiah(b.tiktokRevenue)}</span>
                       </div>
-                      <div className="flex justify-between items-center text-xs">
-                        <span className="text-muted-foreground font-medium">Modal (COGS)</span>
-                        <span className="font-mono text-foreground/80">{formatRupiah(b.cost)}</span>
+                      <div className="flex items-center justify-between py-1.5">
+                        <span className="text-muted-foreground">Modal (COGS)</span>
+                        <span className="tabular-nums text-foreground/80">{formatRupiah(b.cost)}</span>
                       </div>
-                      <div className="pt-2 border-t border-border/60 flex justify-between items-center text-xs">
-                        <span className="text-foreground/80 font-bold">Margin Kotor</span>
+                      <div className="flex items-center justify-between py-1.5 last:pb-0">
+                        <span className="font-medium">Margin Kotor</span>
                         <div className="text-right">
-                          <span className="font-mono font-bold text-emerald-700">{formatRupiah(b.margin)}</span>
-                          <span className="text-[10px] text-indigo-600 ml-1">({marginPct.toFixed(1)}%)</span>
+                          <span className="font-semibold tabular-nums text-emerald-600">{formatRupiah(b.margin)}</span>
+                          <span className="ml-1 text-xs text-muted-foreground">({marginPct.toFixed(1)}%)</span>
                         </div>
                       </div>
                     </div>
@@ -281,72 +315,95 @@ export const HQAnalyticsModule: React.FC<HQAnalyticsModuleProps> = ({ analytics,
       )}
 
       {/* Product Performance and Stock */}
-      <div className="space-y-4 pt-4 border-t border-border">
-        <h3 className="text-base font-bold text-foreground flex items-center gap-2">
-          <ShoppingBag className="w-5 h-5 text-foreground/80" />
-          Performa &amp; Sisa Stok Produk
-        </h3>
-        
+      <div className="space-y-4 pt-4 border-t border-border/70">
+        <SectionTitle icon={ShoppingBag}>Performa &amp; Sisa Stok Produk</SectionTitle>
+
+        {(() => {
+          const lowStockCount = analytics.productPerformance.filter(
+            (p) => p.remainingStock <= LOW_STOCK_THRESHOLD
+          ).length;
+          if (lowStockCount === 0) return null;
+          return (
+            <Alert className="border-amber-200 bg-amber-50 text-amber-800">
+              <AlertOctagon />
+              <AlertDescription className="text-xs font-medium text-amber-800">
+                {lowStockCount} produk dengan stok menipis ({'\u2264'} {LOW_STOCK_THRESHOLD} unit) — segera alokasikan
+                stok melalui menu Pengiriman ke Cabang.
+              </AlertDescription>
+            </Alert>
+          );
+        })()}
+
         {/* Desktop Table */}
-        <Card className="shadow-sm border-border hidden md:block rounded-xl overflow-hidden">
+        <Card className="hidden md:block overflow-hidden">
           <Table>
-            <TableHeader className="bg-muted/50 border-b border-border/50">
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider py-4">SKU</TableHead>
-                <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Produk &amp; Varian</TableHead>
-                <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Terjual (Qty)</TableHead>
-                <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Sisa Stok Tersedia</TableHead>
+            <TableHeader>
+              <TableRow>
+                <TableHead>SKU</TableHead>
+                <TableHead>Produk &amp; Varian</TableHead>
+                <TableHead className="text-right">Terjual (Qty)</TableHead>
+                <TableHead className="text-right">Sisa Stok Tersedia</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {analytics.productPerformance.map((p) => (
-                <TableRow key={p.masterProductId} className="group transition-colors hover:bg-muted/30">
-                  <TableCell className="font-mono font-medium text-foreground/80 text-xs py-4">{p.sku}</TableCell>
-                  <TableCell>
-                    <div className="font-bold text-foreground text-sm">{p.name}</div>
-                    <div className="text-[11px] text-muted-foreground mt-0.5">{p.variant}</div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <span className="font-bold text-emerald-600 text-sm">{p.qtySold}</span> <span className="text-xs text-muted-foreground">unit</span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <span className={`font-bold text-sm ${p.remainingStock > 0 ? 'text-indigo-600' : 'text-rose-600'}`}>
-                      {p.remainingStock}
-                    </span> <span className="text-xs text-muted-foreground">unit</span>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {analytics.productPerformance.map((p) => {
+                const badge = stockBadge(p.remainingStock);
+                return (
+                  <TableRow key={p.masterProductId}>
+                    <TableCell className="font-mono text-xs text-foreground/70">{p.sku}</TableCell>
+                    <TableCell>
+                      <div className="font-medium">{p.name}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">{p.variant}</div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span className="font-semibold tabular-nums">{p.qtySold}</span>
+                      <span className="ml-1 text-xs text-muted-foreground">unit</span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span className={`font-semibold tabular-nums ${stockColor(p.remainingStock)}`}>
+                        {p.remainingStock}
+                      </span>
+                      <span className="ml-1 text-xs text-muted-foreground">unit</span>
+                      {badge && <span className="ml-2 inline-block align-middle">{badge}</span>}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </Card>
 
         {/* Mobile Cards */}
         <div className="md:hidden space-y-3">
-          {analytics.productPerformance.map((p) => (
-            <Card key={p.masterProductId} className="border-border shadow-sm rounded-xl">
-              <CardContent className="p-4 space-y-3">
-                <div className="flex justify-between items-start">
+          {analytics.productPerformance.map((p) => {
+            const badge = stockBadge(p.remainingStock);
+            return (
+              <Card key={p.masterProductId}>
+                <CardContent className="space-y-3">
                   <div>
-                    <div className="font-bold text-foreground text-sm">{p.name}</div>
-                    <div className="text-[11px] text-muted-foreground mt-0.5">{p.variant}</div>
-                    <div className="text-[10px] text-muted-foreground font-mono mt-1">SKU: {p.sku}</div>
+                    <div className="font-medium">{p.name}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">{p.variant}</div>
+                    <div className="text-xs text-muted-foreground font-mono mt-1">SKU: {p.sku}</div>
                   </div>
-                </div>
-                <div className="bg-muted/50 rounded-lg p-3 grid grid-cols-2 gap-2 border border-border/50">
-                  <div className="space-y-1">
-                    <div className="text-[10px] font-semibold text-muted-foreground uppercase">Terjual</div>
-                    <div className="font-bold text-emerald-600 text-sm">{p.qtySold} <span className="text-[10px] font-normal text-muted-foreground">unit</span></div>
-                  </div>
-                  <div className="space-y-1 text-right">
-                    <div className="text-[10px] font-semibold text-muted-foreground uppercase">Sisa Stok</div>
-                    <div className={`font-bold text-sm ${p.remainingStock > 0 ? 'text-indigo-600' : 'text-rose-600'}`}>
-                      {p.remainingStock} <span className="text-[10px] font-normal text-muted-foreground">unit</span>
+                  <div className="grid grid-cols-2 gap-4 border-t border-border/70 pt-3">
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Terjual</p>
+                      <div className="font-semibold tabular-nums">
+                        {p.qtySold} <span className="text-xs font-normal text-muted-foreground">unit</span>
+                      </div>
+                    </div>
+                    <div className="space-y-1 text-right">
+                      <p className="text-xs text-muted-foreground">Sisa Stok</p>
+                      <div className={`font-semibold tabular-nums ${stockColor(p.remainingStock)}`}>
+                        {p.remainingStock} <span className="text-xs font-normal text-muted-foreground">unit</span>
+                      </div>
+                      {badge && <div className="flex justify-end">{badge}</div>}
                     </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       </div>
     </div>

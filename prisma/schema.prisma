@@ -22,6 +22,7 @@ model Branch {
   inventories       BranchInventory[]
   salesTransactions SalesTransaction[]
   transactionCounters TransactionCounter[]
+  belanjaOrders     BelanjaOrder[]
 }
 
 model User {
@@ -51,6 +52,7 @@ model MasterProduct {
   shipmentItems         ShipmentItem[]
   inventories           BranchInventory[]
   salesTransactionItems SalesTransactionItem[]
+  belanjaOrderItems     BelanjaOrderItem[]
 }
 
 model Shipment {
@@ -77,13 +79,14 @@ model ShipmentItem {
 }
 
 model BranchInventory {
-  id              String        @id @default(uuid())
-  branchId        String
-  branch          Branch        @relation(fields: [branchId], references: [id])
-  masterProductId String
-  masterProduct   MasterProduct @relation(fields: [masterProductId], references: [id])
-  qtyAvailable    Int           @default(0)
-  qtyDamaged      Int           @default(0)
+  id                   String        @id @default(uuid())
+  branchId             String
+  branch               Branch        @relation(fields: [branchId], references: [id])
+  masterProductId      String
+  masterProduct        MasterProduct @relation(fields: [masterProductId], references: [id])
+  qtyAvailable         Int           @default(0)
+  qtyDamaged           Int           @default(0)
+  resellerSellingPrice Float?
 
   @@unique([branchId, masterProductId])
 }
@@ -100,6 +103,9 @@ model SalesTransaction {
   paymentStatus        String                 @default("PAID")
   paymentMethod        String                 @default("CASH")
   ecommerceActualPrice Float?
+  isReseller           Boolean                @default(false)
+  discountPercent      Float                  @default(0)
+  discountAmount       Float                  @default(0)
   totalAmount          Float
   totalCost            Float
   createdAt            DateTime               @default(now())
@@ -114,6 +120,37 @@ model SalesTransactionItem {
   masterProduct   MasterProduct    @relation(fields: [masterProductId], references: [id])
   qty             Int
   sellingPrice    Float
+  costPrice       Float
+}
+
+model BelanjaOrder {
+  id            String   @id @default(uuid())
+  orderNumber   String   @unique
+  branchId      String
+  branch        Branch   @relation(fields: [branchId], references: [id])
+  customerName  String
+  customerPhone String
+  address       String?
+  fulfillment   String   @default("PICKUP") // "PICKUP" | "COURIER"
+  deliveryFee   Float    @default(0)
+  notes         String?
+  status        String   @default("BARU") // "BARU" | "DIKONFIRMASI" | "SELESAI" | "BATAL"
+  totalAmount   Float
+  totalCost     Float
+  transactionNumber String?
+  confirmedAt   DateTime?
+  createdAt     DateTime @default(now())
+  items         BelanjaOrderItem[]
+}
+
+model BelanjaOrderItem {
+  id              String        @id @default(uuid())
+  orderId         String
+  order           BelanjaOrder   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  masterProductId String
+  masterProduct   MasterProduct @relation(fields: [masterProductId], references: [id])
+  qty             Int
+  unitPrice       Float
   costPrice       Float
 }
 
@@ -133,7 +170,8 @@ model TransactionCounter {
   branchId   String
   branch     Branch   @relation(fields: [branchId], references: [id])
   date       String // YYYYMMDD
+  kind       String   @default("INV") // "INV" | "BLJ"
   lastNumber Int      @default(0)
 
-  @@unique([branchId, date])
+  @@unique([branchId, date, kind])
 }

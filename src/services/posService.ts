@@ -16,7 +16,7 @@ function isUniqueConstraintError(error: unknown): boolean {
 // SalesTransaction (so numbering survives deletions). A single INSERT ... ON CONFLICT DO
 // UPDATE claims a distinct number under a row lock and ALWAYS returns a row, so concurrent
 // requests never collide and never get skipped.
-async function getNextInvoiceSequence(branchId: string, branchCode: string, date: string): Promise<number> {
+export async function getNextInvoiceSequence(branchId: string, branchCode: string, date: string): Promise<number> {
   const rows: { seq: number }[] = await prisma.$queryRaw`
     WITH existing_max AS (
       SELECT COALESCE(MAX(NULLIF(SPLIT_PART("transactionNumber", '/', 4), '')::int), 0) AS mx
@@ -25,10 +25,10 @@ async function getNextInvoiceSequence(branchId: string, branchCode: string, date
         AND "transactionNumber" LIKE ${`INV/${branchCode}/${date}/%`}
         AND SPLIT_PART("transactionNumber", '/', 4) ~ '^[0-9]+$'
     )
-    INSERT INTO "TransactionCounter" ("id", "branchId", "date", "lastNumber")
-    SELECT gen_random_uuid(), ${branchId}, ${date}, mx + 1
+    INSERT INTO "TransactionCounter" ("id", "branchId", "date", "kind", "lastNumber")
+    SELECT gen_random_uuid(), ${branchId}, ${date}, 'INV', mx + 1
     FROM existing_max
-    ON CONFLICT ("branchId", "date")
+    ON CONFLICT ("branchId", "date", "kind")
     DO UPDATE SET "lastNumber" = "TransactionCounter"."lastNumber" + 1
     RETURNING "lastNumber" AS "seq"
   `;
@@ -47,6 +47,8 @@ export async function createSalesTransaction(data: {
   paymentStatus: string;
   paymentMethod: string;
   ecommerceActualPrice?: number | null;
+  isReseller?: boolean;
+  discountPercent?: number;
 }): Promise<SalesTransaction> {
   if (data.items.length === 0) {
     throw new Error('Keranjang belanja tidak boleh kosong');
@@ -58,6 +60,15 @@ export async function createSalesTransaction(data: {
 
   if (data.channel === 'ONLINE' && (data.ecommerceActualPrice === undefined || data.ecommerceActualPrice === null || data.ecommerceActualPrice <= 0)) {
     throw new Error('Harga Actual Ecommerce wajib diisi untuk transaksi Online');
+  }
+
+  const isReseller = data.channel === 'OFFLINE' && !!data.isReseller;
+  let discountPercent = 0;
+  if (isReseller && data.discountPercent != null) {
+    discountPercent = Number(data.discountPercent);
+    if (!Number.isFinite(discountPercent) || discountPercent < 0 || discountPercent > 100) {
+      throw new Error('Diskon reseller harus antara 0% dan 100%');
+    }
   }
 
   const branch = await prisma.branch.findUnique({ where: { id: data.branchId } });
@@ -97,7 +108,9 @@ export async function createSalesTransaction(data: {
         ? data.platform === 'SHOPEE'
           ? prod.shopeeSellingPrice
           : prod.tiktokSellingPrice
-        : prod.offlineSellingPrice;
+        : isReseller
+          ? (inventory.resellerSellingPrice ?? prod.offlineSellingPrice)
+          : prod.offlineSellingPrice;
     const sellingPrice = data.items.find(i => i.masterProductId === cartItem.masterProductId)?.customPrice ?? autoPrice;
     const itemSubtotal = sellingPrice * cartItem.qty;
     const itemCostTotal = prod.costPrice * cartItem.qty;
@@ -124,8 +137,13 @@ export async function createSalesTransaction(data: {
   }
 
   // For ONLINE transactions, the ecommerce actual price IS the primary amount (overrides computed total)
+  // For OFFLINE reseller transactions, apply the percentage discount to the item subtotal server-side.
+  let discountAmount = 0;
+  if (isReseller && discountPercent > 0 && grandTotalAmount > 0) {
+    discountAmount = Math.min(Math.round((grandTotalAmount * discountPercent) / 100), grandTotalAmount);
+  }
   const finalTotalAmount =
-    data.channel === 'ONLINE' ? (data.ecommerceActualPrice ?? grandTotalAmount) : grandTotalAmount;
+    data.channel === 'ONLINE' ? (data.ecommerceActualPrice ?? grandTotalAmount) : grandTotalAmount - discountAmount;
 
   // Reserve the invoice number atomically, then create the transaction. Retry on a unique
   // violation as a safety net; a failed batch rolls back (stock is untouched), so re-running
@@ -152,6 +170,9 @@ export async function createSalesTransaction(data: {
             paymentStatus: data.paymentStatus,
             paymentMethod: data.paymentMethod,
             ecommerceActualPrice: data.channel === 'ONLINE' ? data.ecommerceActualPrice : null,
+            isReseller,
+            discountPercent: isReseller ? discountPercent : 0,
+            discountAmount: isReseller ? discountAmount : 0,
             totalAmount: finalTotalAmount,
             totalCost: grandTotalCost,
             items: {
@@ -255,6 +276,7 @@ export async function updateSalesTransaction(
     paymentMethod?: string;
     paymentStatus?: string;
     items?: { id: string; qty: number; sellingPrice: number }[];
+    discountPercent?: number | null;
   }
 ): Promise<SalesTransaction> {
   const existingTx = await prisma.salesTransaction.findUnique({
@@ -266,7 +288,7 @@ export async function updateSalesTransaction(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const operations: any[] = [];
-  let newTotalAmount = existingTx.totalAmount;
+  let baseAmount = existingTx.totalAmount;
 
   if (data.items && data.items.length > 0) {
     // We update each item's qty and sellingPrice.
@@ -291,7 +313,22 @@ export async function updateSalesTransaction(
         );
       }
     }
-    newTotalAmount = calcTotalAmount;
+    baseAmount = calcTotalAmount;
+  }
+  baseAmount = Math.max(0, baseAmount);
+
+  // Percentage discount only applies to OFFLINE reseller transactions; compute server-side.
+  let discountPercent = existingTx.discountPercent || 0;
+  if (existingTx.channel === 'OFFLINE' && existingTx.isReseller && data.discountPercent !== undefined && data.discountPercent !== null) {
+    discountPercent = Number(data.discountPercent);
+    if (!Number.isFinite(discountPercent) || discountPercent < 0 || discountPercent > 100) {
+      throw new Error('Diskon reseller harus antara 0% dan 100%');
+    }
+  }
+  let newTotalAmount = baseAmount;
+  if (existingTx.channel === 'OFFLINE' && existingTx.isReseller && discountPercent > 0) {
+    const discountAmount = Math.min(Math.round((baseAmount * discountPercent) / 100), baseAmount);
+    newTotalAmount = baseAmount - discountAmount;
   }
 
   // If ecommerceActualPrice is provided, it completely overrides the totalAmount
@@ -302,6 +339,11 @@ export async function updateSalesTransaction(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const updateData: any = {
     totalAmount: newTotalAmount,
+    discountPercent: existingTx.channel === 'OFFLINE' && existingTx.isReseller ? discountPercent : 0,
+    discountAmount:
+      existingTx.channel === 'OFFLINE' && existingTx.isReseller
+        ? Math.max(0, baseAmount - newTotalAmount)
+        : 0,
   };
 
   if (data.ecommerceActualPrice !== undefined) {

@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { BranchInventory, SalesTransaction, SalesChannel, OnlinePlatform, User, MasterProduct } from '@/types';
+import { BranchInventory, SalesTransaction, SalesChannel, OnlinePlatform, User } from '@/types';
 import { formatRupiah } from '@/constants';
-import { ShoppingBag, ShoppingCart, Plus, Minus, Trash2, Store, Smartphone, AlertCircle, X, Settings2 } from 'lucide-react';
+import { ShoppingBag, ShoppingCart, Plus, Minus, Trash2, Store, Smartphone, X, Settings2 } from 'lucide-react';
 import { ReceiptModal } from './ReceiptModal';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +20,8 @@ import {
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { PageHeader } from '@/components/shared/PageHeader';
 import { Pencil, Check } from 'lucide-react';
 
 interface BranchPOSModuleProps {
@@ -49,6 +51,8 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
   const [paymentStatus, setPaymentStatus] = useState('PAID');
   const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [ecommerceActualPrice, setEcommerceActualPrice] = useState<number | ''>('');
+  const [isReseller, setIsReseller] = useState(false);
+  const [discountPercent, setDiscountPercent] = useState('');
   
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
   const [editingPriceValue, setEditingPriceValue] = useState<string>('');
@@ -61,6 +65,8 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
     setCustomerName('');
     setCustomerPhone('');
     setEcommerceActualPrice('');
+    setIsReseller(false);
+    setDiscountPercent('');
     setPaymentMethod(channel === 'ONLINE' ? 'ECOMMERCE' : 'CASH');
   };
 
@@ -106,20 +112,37 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
     setCart(cart.filter((c) => c.masterProductId !== masterProductId));
   };
 
-  const resolveBasePrice = (prod: MasterProduct) => {
+  const resolveActivePrice = (inv: BranchInventory) => {
     if (channel === 'ONLINE') {
-      return platform === 'SHOPEE' ? prod.shopeeSellingPrice : prod.tiktokSellingPrice;
+      return platform === 'SHOPEE' ? inv.masterProduct.shopeeSellingPrice : inv.masterProduct.tiktokSellingPrice;
     }
-    return prod.offlineSellingPrice;
+    if (isReseller) {
+      return inv.resellerSellingPrice ?? inv.masterProduct.offlineSellingPrice;
+    }
+    return inv.masterProduct.offlineSellingPrice;
   };
 
   const calculateSubtotal = () => {
     return cart.reduce((sum, item) => {
       const inv = inventories.find((i) => i.masterProductId === item.masterProductId);
       if (!inv) return sum;
-      const price = item.customPrice ?? resolveBasePrice(inv.masterProduct);
+      const price = item.customPrice ?? resolveActivePrice(inv);
       return sum + price * item.qty;
     }, 0);
+  };
+
+  const calculateDiscount = () => {
+    if (!isReseller || channel !== 'OFFLINE') return 0;
+    const pct = Number(discountPercent);
+    if (!Number.isFinite(pct) || pct <= 0 || pct > 100) return 0;
+    const subtotal = calculateSubtotal();
+    if (subtotal <= 0) return 0;
+    return Math.min(Math.round((subtotal * pct) / 100), subtotal);
+  };
+
+  const calculatePayable = () => {
+    if (channel === 'ONLINE' && ecommerceActualPrice !== '') return Number(ecommerceActualPrice);
+    return Math.max(0, calculateSubtotal() - calculateDiscount());
   };
 
   const handleCheckout = async () => {
@@ -138,6 +161,20 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
     if (channel === 'ONLINE' && (ecommerceActualPrice === '' || Number(ecommerceActualPrice) <= 0)) {
       setErrorMsg('Harga Actual Ecommerce wajib diisi untuk transaksi Online');
       return;
+    }
+
+    if (isReseller && channel !== 'OFFLINE') {
+      setErrorMsg('Transaksi reseller hanya tersedia untuk penjualan Offline');
+      return;
+    }
+
+    let parsedDiscount = 0;
+    if (isReseller && discountPercent !== '') {
+      parsedDiscount = Number(discountPercent);
+      if (!Number.isFinite(parsedDiscount) || parsedDiscount < 0 || parsedDiscount > 100) {
+        setErrorMsg('Diskon reseller harus antara 0% dan 100%');
+        return;
+      }
     }
 
     submittingRef.current = true;
@@ -159,7 +196,9 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
           customerPhone,
           paymentStatus,
           paymentMethod: channel === 'ONLINE' ? 'ECOMMERCE' : paymentMethod,
-          ecommerceActualPrice: ecommerceActualPrice === '' ? null : Number(ecommerceActualPrice)
+          ecommerceActualPrice: ecommerceActualPrice === '' ? null : Number(ecommerceActualPrice),
+          isReseller,
+          discountPercent: parsedDiscount,
         }),
       });
 
@@ -183,28 +222,27 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
   const cartContent = (
     <div className="space-y-4">
       <div className="flex items-center justify-between border-b border-border pb-3">
-        <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-          <ShoppingCart className="w-4 h-4 text-muted-foreground" />
+        <h3 className="flex items-center gap-2 text-sm font-semibold">
+          <ShoppingCart className="size-4 text-muted-foreground" />
           Keranjang POS ({cartItemsCount})
         </h3>
         {cart.length > 0 && (
-          <Button variant="link" size="sm" onClick={() => setCart([])} className="h-auto p-0 text-[11px] text-rose-600 font-bold">
+          <Button variant="link" size="sm" onClick={() => setCart([])} className="h-auto p-0 text-xs text-rose-600">
             Kosongkan
           </Button>
         )}
       </div>
 
       {errorMsg && (
-        <Alert variant="destructive" className="py-2 px-3">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription className="text-xs font-medium ml-2">{errorMsg}</AlertDescription>
+        <Alert variant="destructive" className="py-2.5 px-3">
+          <AlertDescription className="text-xs font-medium">{errorMsg}</AlertDescription>
         </Alert>
       )}
 
       {cart.length === 0 ? (
         <div className="p-6 text-center text-xs text-muted-foreground space-y-1">
-          <p className="font-bold text-foreground/80">Keranjang masih kosong.</p>
-          <p className="text-[11px]">Pilih produk dari katalog untuk memulai transaksi.</p>
+          <p className="font-medium text-foreground/80">Keranjang masih kosong.</p>
+          <p>Pilih produk dari katalog untuk memulai transaksi.</p>
         </div>
       ) : (
         <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1 divide-y divide-border">
@@ -212,13 +250,13 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
             const inv = inventories.find((i) => i.masterProductId === item.masterProductId);
             if (!inv) return null;
             const prod = inv.masterProduct;
-            const price = item.customPrice ?? resolveBasePrice(prod);
+            const price = item.customPrice ?? resolveActivePrice(inv);
 
             return (
               <div key={item.masterProductId} className="pt-2.5 flex items-center justify-between">
                 <div>
-                  <div className="font-bold text-xs text-foreground">{prod.name}</div>
-                  <div className="text-[10px] text-muted-foreground font-medium flex items-center gap-2 mt-0.5">
+                  <div className="text-xs font-medium">{prod.name}</div>
+                  <div className="text-[11px] text-muted-foreground flex items-center gap-2 mt-0.5">
                     {editingPriceId === item.masterProductId ? (
                       <div className="flex items-center gap-1">
                         <Input 
@@ -264,24 +302,61 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
       {/* Cart Summary & Checkout */}
       <div className="pt-4 border-t border-border space-y-3">
         <div className="space-y-2 pb-2 border-b border-border">
-           <Label className="text-[11px] font-bold">Nama Customer <span className="text-destructive">*</span></Label>
-           <Input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Nama" className="h-8 text-xs" />
-           <Label className="text-[11px] font-bold">No. Handphone <span className="text-destructive">*</span></Label>
-           <Input value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="0812..." className="h-8 text-xs" />
+           {channel === 'OFFLINE' && (
+             <div className="flex items-center justify-between pb-1">
+               <Label className="text-xs font-medium">Transaksi Reseller</Label>
+               <Switch
+                 checked={isReseller}
+                 onCheckedChange={(checked) => {
+                   setIsReseller(checked);
+                   setDiscountPercent('');
+                 }}
+               />
+             </div>
+           )}
+           {isReseller ? (
+             <>
+               <Label>Nama Reseller <span className="text-destructive">*</span></Label>
+               <Input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Nama Reseller" />
+               <Label>No. Handphone Reseller <span className="text-destructive">*</span></Label>
+               <Input value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="0812..." />
+               <div className="pt-1 space-y-1">
+                 <Label>Diskon Penjualan (%)</Label>
+                 <Input
+                   type="number"
+                   min={0}
+                   max={100}
+                   step="0.1"
+                   value={discountPercent}
+                   onChange={e => setDiscountPercent(e.target.value)}
+                   placeholder="cth: 10"
+                 />
+                 <p className="text-xs text-muted-foreground">
+                   Diskon dihitung dari subtotal transaksi (diterapkan otomatis).
+                 </p>
+               </div>
+             </>
+           ) : (
+             <>
+               <Label>Nama Customer <span className="text-destructive">*</span></Label>
+               <Input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Nama" />
+               <Label>No. Handphone <span className="text-destructive">*</span></Label>
+               <Input value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="0812..." />
+             </>
+           )}
         </div>
 
         {channel === 'ONLINE' && (
           <div className="space-y-2 pb-2 border-b border-border">
-            <Label className="text-[11px] font-bold">Harga Actual Ecommerce <span className="text-destructive">*</span></Label>
+            <Label>Harga Actual Ecommerce <span className="text-destructive">*</span></Label>
             <Input
               type="number"
               min={0}
               value={ecommerceActualPrice}
               onChange={e => setEcommerceActualPrice(e.target.value === '' ? '' : Number(e.target.value))}
               placeholder="Total dari platform"
-              className="h-8 text-xs"
             />
-            <p className="text-[10px] text-muted-foreground font-medium">
+            <p className="text-xs text-muted-foreground">
               Nilai ini menjadi total omzet utama transaksi online (menggantikan total item).
             </p>
           </div>
@@ -290,9 +365,9 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
         {channel === 'OFFLINE' && (
           <div className="grid grid-cols-2 gap-2 pb-2 border-b border-border">
             <div className="space-y-1">
-              <Label className="text-[11px] font-bold">Metode</Label>
+              <Label>Metode</Label>
               <Select value={paymentMethod} onValueChange={(val) => setPaymentMethod(val || 'CASH')}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="CASH">CASH</SelectItem>
                   <SelectItem value="TRANSFER">TRANSFER</SelectItem>
@@ -301,9 +376,9 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-[11px] font-bold">Status</Label>
+              <Label>Status</Label>
               <Select value={paymentStatus} onValueChange={(val) => setPaymentStatus(val || 'PAID')}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="PAID">LUNAS</SelectItem>
                   <SelectItem value="PENDING">PENDING</SelectItem>
@@ -314,30 +389,45 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
         )}
 
         <div className="flex justify-between items-center text-xs">
-          <span className="text-muted-foreground font-medium">Channel Transaksi:</span>
-          <span className="font-bold text-foreground">
+          <span className="text-muted-foreground">Channel Transaksi</span>
+          <span className="font-semibold">
             {channel} {channel === 'ONLINE' ? `(${platform})` : ''}
           </span>
         </div>
 
-        <div className="flex justify-between items-center text-sm font-bold text-foreground">
-          <div>
-            <span>TOTAL BAYAR</span>
-            {channel === 'ONLINE' && ecommerceActualPrice !== '' && (
-              <div className="text-[10px] text-muted-foreground font-medium">Harga aktual ecommerce (total utama)</div>
-            )}
+        <div className="space-y-1.5">
+          {isReseller && channel === 'OFFLINE' && calculateDiscount() > 0 && (
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-muted-foreground">Subtotal</span>
+              <span className="font-semibold tabular-nums">{formatRupiah(calculateSubtotal())}</span>
+            </div>
+          )}
+          {isReseller && channel === 'OFFLINE' && calculateDiscount() > 0 && (
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-muted-foreground">Diskon ({discountPercent}%)</span>
+              <span className="font-semibold tabular-nums text-rose-600">-{formatRupiah(calculateDiscount())}</span>
+            </div>
+          )}
+          <div className="flex justify-between items-center text-sm font-semibold">
+            <div>
+              <span>TOTAL BAYAR</span>
+              {channel === 'ONLINE' && ecommerceActualPrice !== '' && (
+                <div className="text-[10px] text-muted-foreground font-normal">Harga aktual ecommerce (total utama)</div>
+              )}
+              {isReseller && channel === 'OFFLINE' && (
+                <div className="text-[10px] text-muted-foreground font-normal">Transaksi reseller{calculateDiscount() > 0 ? ` - diskon ${discountPercent}%` : ''}</div>
+              )}
+            </div>
+            <span className="text-base tabular-nums">
+              {formatRupiah(calculatePayable())}
+            </span>
           </div>
-          <span className="text-base text-primary font-mono">
-            {channel === 'ONLINE' && ecommerceActualPrice !== ''
-              ? formatRupiah(Number(ecommerceActualPrice))
-              : formatRupiah(calculateSubtotal())}
-          </span>
         </div>
 
         <Button
           onClick={handleCheckout}
           disabled={loading || cart.length === 0}
-          className="w-full text-xs font-bold h-10 shadow-sm"
+          className="w-full"
         >
           {loading ? 'Memproses POS...' : 'Selesaikan Transaksi & Terbitkan Struk'}
         </Button>
@@ -362,30 +452,30 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
               <Button
                 variant={channel === 'OFFLINE' ? 'default' : 'outline'}
                 onClick={() => setChannel('OFFLINE')}
-                className={`h-24 flex flex-col items-center justify-center gap-2 ${channel === 'OFFLINE' ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20' : 'hover:bg-muted border-border'}`}
+                className="flex h-24 flex-col items-center justify-center gap-2"
               >
-                <Store className="w-6 h-6" />
-                <span className="font-bold">Offline (Toko)</span>
+                <Store className="size-6" />
+                <span className="font-semibold">Offline (Toko)</span>
               </Button>
               <Button
                 variant={channel === 'ONLINE' ? 'default' : 'outline'}
                 onClick={() => setChannel('ONLINE')}
-                className={`h-24 flex flex-col items-center justify-center gap-2 ${channel === 'ONLINE' ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20' : 'hover:bg-muted border-border'}`}
+                className="flex h-24 flex-col items-center justify-center gap-2"
               >
-                <Smartphone className="w-6 h-6" />
-                <span className="font-bold">Online</span>
+                <Smartphone className="size-6" />
+                <span className="font-semibold">Online</span>
               </Button>
             </div>
 
             {channel === 'ONLINE' && (
-              <div className="p-4 bg-primary/5 rounded-xl space-y-3 animate-fadeIn border border-primary/10">
-                <Label className="text-xs font-bold text-primary">Pilih Platform Online:</Label>
+              <div className="space-y-3 rounded-lg border border-border p-4">
+                <Label className="text-sm font-medium">Pilih Platform Online</Label>
                 <div className="grid grid-cols-2 gap-2">
                   <Button
                     variant={platform === 'SHOPEE' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setPlatform('SHOPEE')}
-                    className={`h-9 text-xs transition-colors ${platform === 'SHOPEE' ? 'bg-[#ee4d2d] hover:bg-[#d74226] text-white border-[#ee4d2d]' : 'bg-card border-border text-muted-foreground hover:bg-muted'}`}
+                    className={platform === 'SHOPEE' ? 'bg-[#ee4d2d] text-white hover:bg-[#d74226]' : 'text-muted-foreground'}
                   >
                     Shopee
                   </Button>
@@ -393,7 +483,7 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
                     variant={platform === 'TIKTOK' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setPlatform('TIKTOK')}
-                    className={`h-9 text-xs transition-colors ${platform === 'TIKTOK' ? 'bg-black hover:bg-gray-800 text-white border-black' : 'bg-card border-border text-muted-foreground hover:bg-muted'}`}
+                    className={platform === 'TIKTOK' ? 'bg-black text-white hover:bg-gray-800' : 'text-muted-foreground'}
                   >
                     TikTok Shop
                   </Button>
@@ -403,76 +493,90 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
           </div>
 
           <DialogFooter>
-            <Button onClick={handleConfirmChannel} className="w-full text-xs font-bold h-10">
+            <Button onClick={handleConfirmChannel} className="w-full">
               Lanjutkan ke Katalog
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-foreground tracking-tight flex items-center gap-2">
-            <ShoppingBag className="w-5 h-5 text-primary" />
-            POS Kasir Multichannel ({currentUser.branch?.name || 'Cabang Madiun'})
-          </h2>
-          <p className="text-xs text-muted-foreground mt-0.5 font-medium">
-            Sesi penjualan aktif untuk: <strong className="text-foreground">{channel} {channel === 'ONLINE' ? `(${platform})` : ''}</strong>
-          </p>
-        </div>
-
-        {isChannelSelected && (
-          <Button variant="outline" size="sm" onClick={() => setIsChannelSelected(false)} className="h-9 text-xs font-semibold bg-card border-border shadow-sm hover:bg-muted">
-            <Settings2 className="w-4 h-4 mr-2 text-muted-foreground" />
-            Ubah Channel
-          </Button>
-        )}
-      </div>
+      <PageHeader
+        title={`POS Kasir Multichannel (${currentUser.branch?.name || 'Cabang Madiun'})`}
+        description={
+          <>
+            Sesi penjualan aktif untuk:{' '}
+            <strong className="text-foreground">
+              {channel} {channel === 'ONLINE' ? `(${platform})` : ''}
+            </strong>
+          </>
+        }
+        icon={ShoppingBag}
+        actions={
+          isChannelSelected && (
+            <Button variant="outline" size="sm" onClick={() => setIsChannelSelected(false)}>
+              <Settings2 /> Ubah Channel
+            </Button>
+          )
+        }
+      />
 
       {isChannelSelected && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-4">
-            <h3 className="text-sm font-bold text-foreground">Katalog Live Product Cabang Madiun</h3>
+            <h3 className="text-base font-semibold">Katalog Live Product Cabang Madiun</h3>
 
             {availableInventories.length === 0 ? (
-              <Card className="p-8 text-center text-xs text-muted-foreground border-border bg-card">
-                Belum ada stok barang yang tersedia untuk dijual. Lakukan validasi pengiriman dari HQ terlebih dahulu.
+              <Card className="border-dashed">
+                <CardContent className="py-10 text-center text-sm text-muted-foreground">
+                  Belum ada stok barang yang tersedia untuk dijual. Lakukan validasi pengiriman dari HQ terlebih dahulu.
+                </CardContent>
               </Card>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {availableInventories.map((inv) => {
                   const prod = inv.masterProduct;
-                  const activePrice = resolveBasePrice(prod);
+                  const activePrice = resolveActivePrice(inv);
                   const inCart = cart.find((c) => c.masterProductId === prod.id);
+                  const isResellerPriced = isReseller && channel === 'OFFLINE' && inv.resellerSellingPrice != null;
 
                   return (
-                    <Card key={inv.id} className="shadow-sm border-border hover:border-primary/40 transition-all flex flex-col justify-between bg-card group">
-                      <CardContent className="p-4 flex flex-col justify-between h-full">
+                    <Card key={inv.id} className="hover:border-primary/40 transition-colors">
+                      <CardContent className="flex flex-col justify-between p-4 h-full">
                         <div className="space-y-1">
                           <div className="flex items-start justify-between">
-                            <span className="text-[10px] font-mono text-foreground font-bold">{prod.sku}</span>
-                            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-[10px] px-1.5 py-0">
-                              Stok: {inv.qtyAvailable}
-                            </Badge>
+                            <span className="font-mono text-xs text-muted-foreground">{prod.sku}</span>
+                            <div className="flex items-center gap-1">
+                              {isResellerPriced && (
+                                <Badge className="border-transparent bg-amber-100 text-amber-700">Reseller</Badge>
+                              )}
+                              <Badge variant="outline" className="font-mono tabular-nums">
+                                Stok: {inv.qtyAvailable}
+                              </Badge>
+                            </div>
                           </div>
-                          <h4 className="font-bold text-foreground text-sm group-hover:text-primary transition-colors">{prod.name}</h4>
+                          <h4 className="font-semibold">{prod.name}</h4>
                           <p className="text-xs text-muted-foreground">Varian: {prod.variant}</p>
                         </div>
 
-                        <div className="pt-3 mt-3 border-t border-border flex items-center justify-between">
+                        <div className="mt-3 flex items-center justify-between border-t border-border/70 pt-3">
                           <div>
-                            <span className="text-[10px] text-muted-foreground font-medium block">Harga {channel}:</span>
-                            <span className="text-sm font-bold text-foreground">{formatRupiah(activePrice)}</span>
+                            <span className="block text-xs text-muted-foreground">
+                              {isResellerPriced ? 'Harga Reseller' : `Harga ${channel}`}
+                            </span>
+                            <span className="font-semibold tabular-nums">{formatRupiah(activePrice)}</span>
+                            {isResellerPriced && inv.masterProduct.offlineSellingPrice !== activePrice && (
+                              <span className="block text-xs text-muted-foreground mt-0.5">
+                                Offline: {formatRupiah(inv.masterProduct.offlineSellingPrice)}
+                              </span>
+                            )}
                           </div>
 
                           <Button
                             size="sm"
                             onClick={() => addToCart(prod.id)}
                             disabled={inv.qtyAvailable <= (inCart?.qty || 0)}
-                            className="h-8 text-xs px-3 shadow-sm"
                           >
-                            <Plus className="w-3.5 h-3.5 mr-1" />
-                            {inCart ? `+ (${inCart.qty})` : 'Tambah'}
+                            <Plus /> {inCart ? `+ (${inCart.qty})` : 'Tambah'}
                           </Button>
                         </div>
                       </CardContent>
@@ -484,7 +588,7 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
           </div>
 
           <div className="hidden lg:block h-fit sticky top-20">
-            <Card className="shadow-lg shadow-primary/5 border-border bg-card">
+            <Card>
               <CardContent className="p-5">
                 {cartContent}
               </CardContent>
@@ -497,13 +601,13 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
         <div className="lg:hidden fixed bottom-4 left-4 right-4 z-40">
           <Button
             onClick={() => setMobileCartOpen(true)}
-            className="w-full h-14 bg-primary text-primary-foreground rounded-2xl shadow-xl shadow-primary/20 flex items-center justify-between font-bold text-xs px-5 hover:bg-primary/90 transition-all"
+            className="w-full h-14 flex items-center justify-between px-5 font-semibold text-xs"
           >
             <div className="flex items-center space-x-2">
               <ShoppingCart className="w-4 h-4" />
               <span>Keranjang POS ({cartItemsCount} item)</span>
             </div>
-            <span className="font-mono text-sm">{formatRupiah(channel === 'ONLINE' && ecommerceActualPrice !== '' ? Number(ecommerceActualPrice) : calculateSubtotal())}</span>
+            <span className="font-mono text-sm">{formatRupiah(calculatePayable())}</span>
           </Button>
         </div>
       )}

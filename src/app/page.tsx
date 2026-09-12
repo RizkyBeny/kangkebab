@@ -4,9 +4,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/AuthProvider';
 import { TabType } from '@/types';
+import { AppSidebar } from '@/components/app-sidebar';
 import { Navbar } from '@/components/layout/Navbar';
-import { Sidebar } from '@/components/layout/Sidebar';
 import { Footer } from '@/components/layout/Footer';
+import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { HQMasterModule } from '@/components/modules/HQMasterModule';
 import { HQDispatchModule } from '@/components/modules/HQDispatchModule';
 import { BranchReceiveModule } from '@/components/modules/BranchReceiveModule';
@@ -15,6 +16,7 @@ import { LiveProductsModule } from '@/components/modules/LiveProductsModule';
 import { HQAnalyticsModule } from '@/components/modules/HQAnalyticsModule';
 import { RevenueHistoryModule } from '@/components/modules/RevenueHistoryModule';
 import { GlobalInventoryModule } from '@/components/modules/GlobalInventoryModule';
+import { ResellerPricingModule } from '@/components/modules/ResellerPricingModule';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { useSSE } from '@/hooks/useSSE';
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
@@ -25,7 +27,6 @@ export default function Home() {
   const router = useRouter();
 
   const [activeTab, setActiveTab] = useState<TabType>('analytics');
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const { branches, products, shipments, inventories, transactions, analytics, refreshData } = useDashboardData({ currentUser });
 
@@ -78,36 +79,31 @@ export default function Home() {
   const pendingReceptionCount = shipments.filter((s) => s.status === 'DIKIRIM').length;
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex font-sans selection:bg-primary/20 relative">
-      <div className="absolute top-0 left-0 w-full h-[300px] bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
-
-      {toastMessage && (
-        <div className="fixed top-16 right-4 z-50 animate-bounce bg-slate-900 text-white font-bold text-xs px-4 py-3 rounded-2xl shadow-xl flex items-center space-x-2 border border-slate-700">
-          <BellRing className="w-4 h-4 animate-spin text-amber-400" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
-
-      <Sidebar
+    <SidebarProvider>
+      <AppSidebar
         currentUser={currentUser}
         activeTab={activeTab}
-        onSelectTab={setActiveTab}
         pendingReceptionCount={pendingReceptionCount}
+        onSelectTab={setActiveTab}
         onLogout={handleLogout}
-        isOpenMobile={mobileMenuOpen}
-        onCloseMobile={() => setMobileMenuOpen(false)}
       />
 
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+      <SidebarInset>
         <Navbar
           currentUser={currentUser}
           activeTab={activeTab}
           sseConnected={sseConnected}
-          onOpenMobileMenu={() => setMobileMenuOpen(true)}
           onLogout={handleLogout}
         />
 
-        <main className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
+        {toastMessage && (
+          <div className="fixed top-16 right-4 z-50 animate-bounce bg-foreground text-background font-bold text-xs px-4 py-3 rounded-xl shadow-xl flex items-center space-x-2">
+            <BellRing className="w-4 h-4 animate-spin text-amber-400" />
+            <span>{toastMessage}</span>
+          </div>
+        )}
+
+        <main className="flex-1 px-4 md:px-6 py-6 space-y-6 max-w-7xl w-full mx-auto">
           <ErrorBoundary>
             {currentUser.role === 'HQ_ADMIN' && (
               <>
@@ -117,6 +113,9 @@ export default function Home() {
                   <HQDispatchModule products={products} shipments={shipments} branches={branches} currentUser={currentUser} onRefresh={refreshData} />
                 )}
                 {activeTab === 'inventory_global' && <GlobalInventoryModule inventories={inventories} />}
+                {activeTab === 'reseller_prices' && (
+                  <ResellerPricingModule inventories={inventories} branches={branches} currentUser={currentUser} onRefresh={refreshData} />
+                )}
                 {activeTab === 'history' && <RevenueHistoryModule transactions={transactions} branches={branches} currentUser={currentUser} onRefresh={() => refreshData()} />}
               </>
             )}
@@ -136,7 +135,7 @@ export default function Home() {
         </main>
 
         <Footer />
-      </div>
-    </div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }

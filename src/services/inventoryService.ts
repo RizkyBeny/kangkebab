@@ -24,6 +24,55 @@ export async function getAllBranchInventories(): Promise<BranchInventory[]> {
   return inventories as unknown as BranchInventory[];
 }
 
+export async function setResellerSellingPrice(data: {
+  branchId: string;
+  masterProductId: string;
+  price: number | null;
+  userId: string;
+  userName: string;
+}): Promise<BranchInventory> {
+  const inventory = await prisma.branchInventory.findUnique({
+    where: {
+      branchId_masterProductId: {
+        branchId: data.branchId,
+        masterProductId: data.masterProductId,
+      },
+    },
+    include: { masterProduct: true, branch: true },
+  });
+
+  if (!inventory) {
+    throw new Error('Stok produk tidak ditemukan di cabang ini');
+  }
+
+  const price = data.price == null ? null : Number(data.price);
+  if (price !== null && (!Number.isFinite(price) || price < 0)) {
+    throw new Error('Harga reseller harus berupa angka >= 0');
+  }
+
+  const updated = await prisma.branchInventory.update({
+    where: { id: inventory.id },
+    data: { resellerSellingPrice: price },
+    include: { masterProduct: true, branch: true },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      userId: data.userId,
+      userName: data.userName,
+      action: price === null ? 'CLEAR_RESELLER_PRICE' : 'SET_RESELLER_PRICE',
+      entity: 'BranchInventory',
+      entityId: inventory.id,
+      details:
+        price === null
+          ? `${data.userName} menghapus harga reseller ${inventory.masterProduct.name} (${inventory.masterProduct.sku}) di ${inventory.branch.name} (kembali ke harga Offline)`
+          : `${data.userName} mengatur harga reseller ${inventory.masterProduct.name} (${inventory.masterProduct.sku}) di ${inventory.branch.name} menjadi Rp ${price}`,
+    },
+  });
+
+  return updated as unknown as BranchInventory;
+}
+
 export async function recoverDamagedInventory(data: {
   branchId: string;
   masterProductId: string;

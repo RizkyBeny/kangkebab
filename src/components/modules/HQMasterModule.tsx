@@ -3,7 +3,18 @@
 import React, { useState } from 'react';
 import { MasterProduct, User } from '@/types';
 import { formatRupiah } from '@/constants';
-import { Plus, Search, Edit2, Trash2, Tag, ShieldCheck, Percent, Download } from 'lucide-react';
+import {
+  Download,
+  Edit2,
+  Music2,
+  Plus,
+  Percent,
+  Search,
+  ShoppingBag,
+  Store,
+  Tag,
+  Trash2,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,7 +29,8 @@ import {
 } from '@/components/ui/table';
 import { ResponsiveModal } from '@/components/ui/ResponsiveModal';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { StoreIcon, PhoneIcon } from '@/components/shared/icons';
+import { PageHeader } from '@/components/shared/PageHeader';
+import { EmptyState } from '@/components/shared/EmptyState';
 
 interface HQMasterModuleProps {
   products: MasterProduct[];
@@ -155,61 +167,55 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
 
   return (
     <div className="space-y-6 md:space-y-8">
-      {/* Header Section */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div>
-          <h2 className="text-xl md:text-2xl font-bold text-foreground tracking-tight flex items-start gap-2 leading-tight">
-            <Tag className="w-6 h-6 text-primary flex-shrink-0 mt-0.5 md:mt-1" />
-            <span>Master Data &amp; Pricing</span>
-          </h2>
-          <p className="text-xs md:text-sm text-muted-foreground mt-1.5 font-medium leading-relaxed max-w-lg">
-            Kelola katalog master produk, harga modal, serta penetapan harga jual Offline, Shopee &amp; TikTok secara terpusat untuk seluruh cabang.
-          </p>
-        </div>
-        <div className="flex gap-2 w-full sm:w-auto">
-          <Button variant="outline" onClick={handleExportCSV} className="h-11 md:h-10 text-xs md:text-sm font-bold shadow-sm flex-1 sm:flex-none">
-            <Download className="w-4 h-4 mr-2" />
-            Export CSV
-          </Button>
-          <Button onClick={openCreateModal} className="h-11 md:h-10 text-xs md:text-sm font-bold shadow-sm flex-1 sm:flex-none">
-            <Plus className="w-4 h-4 mr-2" />
-            Tambah Produk
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Master Data & Pricing"
+        description="Kelola katalog master produk, harga modal, serta penetapan harga jual Offline, Shopee & TikTok secara terpusat untuk seluruh cabang."
+        icon={Tag}
+        actions={
+          <>
+            <Button variant="outline" onClick={handleExportCSV}>
+              <Download />
+              Export CSV
+            </Button>
+            <Button onClick={openCreateModal}>
+              <Plus />
+              Tambah Produk
+            </Button>
+          </>
+        }
+      />
 
-      {/* Search Bar */}
       <div className="relative max-w-md">
-        <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+        <Search className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
         <Input
           type="text"
           placeholder="Cari nama, SKU, atau varian..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="pl-9 h-11 md:h-10 text-xs md:text-sm bg-background shadow-sm border-border rounded-xl md:rounded-lg focus-visible:ring-primary/30 transition-all"
+          className="pl-9"
         />
       </div>
 
       {/* Desktop Table View */}
-      <Card className="shadow-sm border-border hidden md:block overflow-hidden rounded-xl bg-card">
+      <Card className="hidden md:block overflow-hidden">
         <Table>
-          <TableHeader className="bg-muted/50 border-b border-border">
-            <TableRow className="hover:bg-transparent">
-              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider py-4">SKU</TableHead>
-              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Produk &amp; Varian</TableHead>
-              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Modal (COGS)</TableHead>
-              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Jual Offline</TableHead>
-              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Jual Shopee</TableHead>
-              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Jual TikTok</TableHead>
-              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Margin (%)</TableHead>
-              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Aksi</TableHead>
+          <TableHeader>
+            <TableRow>
+              <TableHead>SKU</TableHead>
+              <TableHead>Produk &amp; Varian</TableHead>
+              <TableHead>Modal (COGS)</TableHead>
+              <TableHead>Jual Offline</TableHead>
+              <TableHead>Jual Shopee</TableHead>
+              <TableHead>Jual TikTok</TableHead>
+              <TableHead>Margin (%)</TableHead>
+              <TableHead className="text-right">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredProducts.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="h-32 text-center text-muted-foreground text-sm">
-                  Belum ada master produk yang tersimpan.
+                <TableCell colSpan={8} className="h-32 text-center text-sm text-muted-foreground">
+                  Belum ada master produk. Tambahkan melalui tombol Tambah Produk.
                 </TableCell>
               </TableRow>
             ) : (
@@ -218,38 +224,36 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
                 const shopeeMargin = p.shopeeSellingPrice > 0 ? ((p.shopeeSellingPrice - p.costPrice) / p.shopeeSellingPrice) * 100 : 0;
                 const tiktokMargin = p.tiktokSellingPrice > 0 ? ((p.tiktokSellingPrice - p.costPrice) / p.tiktokSellingPrice) * 100 : 0;
                 return (
-                  <TableRow key={p.id} className="group transition-colors hover:bg-muted/30">
-                    <TableCell className="font-mono text-muted-foreground font-medium text-xs py-4">{p.sku}</TableCell>
+                  <TableRow key={p.id}>
+                    <TableCell className="font-mono text-xs text-muted-foreground">{p.sku}</TableCell>
                     <TableCell>
-                      <div className="font-bold text-foreground text-sm">{p.name}</div>
+                      <div className="font-medium">{p.name}</div>
                       <div className="text-xs text-muted-foreground mt-0.5">{p.variant}</div>
                     </TableCell>
-                    <TableCell className="font-mono text-muted-foreground font-medium text-xs">
-                      {formatRupiah(p.costPrice)}
-                    </TableCell>
+                    <TableCell className="tabular-nums text-foreground/70">{formatRupiah(p.costPrice)}</TableCell>
+                    <TableCell className="font-semibold tabular-nums text-emerald-600">{formatRupiah(p.offlineSellingPrice)}</TableCell>
+                    <TableCell className="font-semibold tabular-nums text-orange-600">{formatRupiah(p.shopeeSellingPrice)}</TableCell>
+                    <TableCell className="font-semibold tabular-nums text-cyan-600">{formatRupiah(p.tiktokSellingPrice)}</TableCell>
                     <TableCell>
-                      <span className="font-mono font-semibold text-emerald-600 text-sm">{formatRupiah(p.offlineSellingPrice)}</span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-mono font-semibold text-primary text-sm">{formatRupiah(p.shopeeSellingPrice)}</span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-mono font-semibold text-foreground text-sm">{formatRupiah(p.tiktokSellingPrice)}</span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-[11px] font-semibold space-y-1">
-                        <div className="text-emerald-600 flex items-center gap-1.5"><StoreIcon className="w-3 h-3"/> {offMargin.toFixed(1)}%</div>
-                        <div className="text-primary flex items-center gap-1.5"><PhoneIcon className="w-3 h-3"/> {shopeeMargin.toFixed(1)}%</div>
-                        <div className="text-foreground flex items-center gap-1.5"><PhoneIcon className="w-3 h-3"/> {tiktokMargin.toFixed(1)}%</div>
+                      <div className="space-y-0.5 text-xs font-medium">
+                        <div className="flex items-center gap-1.5 text-emerald-600">
+                          <Store className="size-3.5" /> {offMargin.toFixed(1)}%
+                        </div>
+                        <div className="flex items-center gap-1.5 text-orange-600">
+                          <ShoppingBag className="size-3.5" /> {shopeeMargin.toFixed(1)}%
+                        </div>
+                        <div className="flex items-center gap-1.5 text-cyan-600">
+                          <Music2 className="size-3.5" /> {tiktokMargin.toFixed(1)}%
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex items-center justify-end space-x-2">
-                        <Button variant="outline" size="sm" onClick={() => openEditModal(p)} className="h-8 text-xs font-semibold hover:border-primary hover:text-primary transition-colors">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Button variant="outline" size="sm" onClick={() => openEditModal(p)}>
                           Edit
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(p.id)} className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
-                          <Trash2 className="w-4 h-4" />
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(p.id)} className="text-muted-foreground hover:text-destructive">
+                          <Trash2 />
                         </Button>
                       </div>
                     </TableCell>
@@ -264,62 +268,68 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
       {/* Mobile Stacked Card View */}
       <div className="md:hidden space-y-3">
         {filteredProducts.length === 0 ? (
-          <div className="p-8 text-center text-muted-foreground text-sm bg-card rounded-xl border border-border">
-            Belum ada produk.
-          </div>
+          <EmptyState
+            title="Belum ada master produk"
+            description="Tambah produk pertama melalui tombol Tambah Produk."
+          />
         ) : (
           filteredProducts.map((p) => {
             const offMargin = p.offlineSellingPrice > 0 ? ((p.offlineSellingPrice - p.costPrice) / p.offlineSellingPrice) * 100 : 0;
             const shopeeMargin = p.shopeeSellingPrice > 0 ? ((p.shopeeSellingPrice - p.costPrice) / p.shopeeSellingPrice) * 100 : 0;
             const tiktokMargin = p.tiktokSellingPrice > 0 ? ((p.tiktokSellingPrice - p.costPrice) / p.tiktokSellingPrice) * 100 : 0;
             return (
-              <Card key={p.id} className="border-border shadow-sm rounded-xl overflow-hidden">
-                <CardContent className="p-4 space-y-4">
-                  <div className="flex items-start justify-between">
+              <Card key={p.id}>
+                <CardContent className="space-y-4">
+                  <div className="flex items-start justify-between gap-2">
                     <div>
-                      <h4 className="font-bold text-foreground text-base leading-tight">{p.name}</h4>
-                      <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
-                        <span>{p.variant}</span>
-                        <span className="w-1 h-1 rounded-full bg-slate-300" />
+                      <h4 className="font-semibold leading-tight">{p.name}</h4>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {p.variant} <span className="mx-1">·</span>
                         <span className="font-mono">{p.sku}</span>
-                      </div>
+                      </p>
                     </div>
                   </div>
 
-                  <div className="bg-muted/50 rounded-lg p-3 space-y-2 border border-border/50">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-muted-foreground font-medium">Modal (COGS)</span>
-                      <span className="font-mono text-foreground/80 font-medium">{formatRupiah(p.costPrice)}</span>
+                  <div className="divide-y divide-border/70 text-sm">
+                    <div className="flex items-center justify-between py-1.5 first:pt-0">
+                      <span className="text-muted-foreground">Modal (COGS)</span>
+                      <span className="tabular-nums text-foreground/80">{formatRupiah(p.costPrice)}</span>
                     </div>
-                    <div className="pt-2 border-t border-border/60 flex justify-between items-center text-xs">
-                      <span className="text-foreground/80 font-bold flex items-center gap-1.5"><StoreIcon className="w-3.5 h-3.5"/> Offline</span>
-                      <div className="text-right">
-                        <span className="font-mono font-bold text-emerald-700">{formatRupiah(p.offlineSellingPrice)}</span>
-                        <span className="text-[10px] text-emerald-600 ml-1">({offMargin.toFixed(0)}%)</span>
-                      </div>
+                    <div className="flex items-center justify-between py-1.5">
+                      <span className="flex items-center gap-1.5 text-muted-foreground">
+                        <Store className="size-3.5" /> Offline
+                      </span>
+                      <span className="font-semibold tabular-nums text-emerald-600">
+                        {formatRupiah(p.offlineSellingPrice)}
+                        <span className="ml-1 text-xs font-normal text-muted-foreground">({offMargin.toFixed(0)}%)</span>
+                      </span>
                     </div>
-                    <div className="pt-1 flex justify-between items-center text-xs">
-                      <span className="text-foreground/80 font-bold flex items-center gap-1.5"><PhoneIcon className="w-3.5 h-3.5"/> Shopee</span>
-                      <div className="text-right">
-                        <span className="font-mono font-bold text-primary">{formatRupiah(p.shopeeSellingPrice)}</span>
-                        <span className="text-[10px] text-primary ml-1">({shopeeMargin.toFixed(0)}%)</span>
-                      </div>
+                    <div className="flex items-center justify-between py-1.5">
+                      <span className="flex items-center gap-1.5 text-muted-foreground">
+                        <ShoppingBag className="size-3.5" /> Shopee
+                      </span>
+                      <span className="font-semibold tabular-nums text-orange-600">
+                        {formatRupiah(p.shopeeSellingPrice)}
+                        <span className="ml-1 text-xs font-normal text-muted-foreground">({shopeeMargin.toFixed(0)}%)</span>
+                      </span>
                     </div>
-                    <div className="pt-1 flex justify-between items-center text-xs">
-                      <span className="text-foreground/80 font-bold flex items-center gap-1.5"><PhoneIcon className="w-3.5 h-3.5"/> TikTok</span>
-                      <div className="text-right">
-                        <span className="font-mono font-bold text-foreground">{formatRupiah(p.tiktokSellingPrice)}</span>
-                        <span className="text-[10px] text-foreground/60 ml-1">({tiktokMargin.toFixed(0)}%)</span>
-                      </div>
+                    <div className="flex items-center justify-between py-1.5 last:pb-0">
+                      <span className="flex items-center gap-1.5 text-muted-foreground">
+                        <Music2 className="size-3.5" /> TikTok
+                      </span>
+                      <span className="font-semibold tabular-nums text-cyan-600">
+                        {formatRupiah(p.tiktokSellingPrice)}
+                        <span className="ml-1 text-xs font-normal text-muted-foreground">({tiktokMargin.toFixed(0)}%)</span>
+                      </span>
                     </div>
                   </div>
 
                   <div className="flex gap-2 pt-1">
-                    <Button variant="outline" className="flex-1 h-9 text-xs font-semibold" onClick={() => openEditModal(p)}>
-                      <Edit2 className="w-3.5 h-3.5 mr-2" /> Edit
+                    <Button variant="outline" className="flex-1" onClick={() => openEditModal(p)}>
+                      <Edit2 /> Edit
                     </Button>
-                    <Button variant="ghost" className="h-9 px-3 text-rose-600 bg-rose-50 hover:bg-rose-100 hover:text-rose-700" onClick={() => handleDelete(p.id)}>
-                      <Trash2 className="w-4 h-4" />
+                    <Button variant="ghost" className="text-rose-600 hover:bg-rose-50" onClick={() => handleDelete(p.id)}>
+                      <Trash2 />
                     </Button>
                   </div>
                 </CardContent>
@@ -333,7 +343,6 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
         open={showModal}
         onOpenChange={setShowModal}
         title={editingProduct ? 'Edit Master Produk' : 'Tambah Master Produk Baru'}
-        icon={<ShieldCheck className="w-5 h-5" />}
       >
         {errorMsg && (
           <Alert variant="destructive" className="mb-4">
@@ -344,95 +353,93 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-foreground/80">SKU Produk</Label>
+              <Label>SKU Produk</Label>
               <Input
                 required
                 placeholder="mis. KB-OR-SM"
                 value={sku}
                 onChange={(e) => setSku(e.target.value)}
-                className="h-11 md:h-10 text-sm md:text-xs font-mono"
+                className="font-mono"
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-foreground/80">Varian</Label>
+              <Label>Varian</Label>
               <Input
                 required
                 placeholder="mis. Small"
                 value={variant}
                 onChange={(e) => setVariant(e.target.value)}
-                className="h-11 md:h-10 text-sm md:text-xs"
               />
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-foreground/80">Nama Produk</Label>
+            <Label>Nama Produk</Label>
             <Input
               required
               placeholder="mis. Kebab Original Beef"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="h-11 md:h-10 text-sm md:text-xs"
             />
           </div>
 
-          <div className="p-4 bg-muted/50 rounded-xl border border-border space-y-4">
-            <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
-              <Percent className="w-4 h-4 text-foreground/80" /> Penetapan Harga &amp; Margin
+          <div className="space-y-4 rounded-lg border border-border p-4">
+            <div className="flex items-center gap-1.5 text-sm font-medium">
+              <Percent className="size-4 text-muted-foreground" /> Penetapan Harga &amp; Margin
             </div>
             <div className="grid grid-cols-1 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-[11px] font-semibold text-foreground/80">Harga Modal (HQ Cost)</Label>
+                <Label className="text-xs text-muted-foreground">Harga Modal (HQ Cost)</Label>
                 <Input
                   type="number"
                   required
                   min={0}
                   value={costPrice || ''}
                   onChange={(e) => setCostPrice(Number(e.target.value))}
-                  className="h-11 md:h-10 text-sm md:text-xs font-mono bg-card"
+                  className="font-mono"
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[11px] font-semibold text-emerald-700">Harga Jual Offline</Label>
+                <Label className="text-xs text-emerald-700">Harga Jual Offline</Label>
                 <Input
                   type="number"
                   required
                   min={0}
                   value={offlineSellingPrice || ''}
                   onChange={(e) => setOfflineSellingPrice(Number(e.target.value))}
-                  className="h-11 md:h-10 text-sm md:text-xs font-mono bg-card"
+                  className="font-mono"
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[11px] font-semibold text-primary">Harga Jual Shopee</Label>
+                <Label className="text-xs text-orange-700">Harga Jual Shopee</Label>
                 <Input
                   type="number"
                   required
                   min={0}
                   value={shopeeSellingPrice || ''}
                   onChange={(e) => setShopeeSellingPrice(Number(e.target.value))}
-                  className="h-11 md:h-10 text-sm md:text-xs font-mono bg-card"
+                  className="font-mono"
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[11px] font-semibold text-foreground/80">Harga Jual TikTok</Label>
+                <Label className="text-xs text-cyan-700">Harga Jual TikTok</Label>
                 <Input
                   type="number"
                   required
                   min={0}
                   value={tiktokSellingPrice || ''}
                   onChange={(e) => setTiktokSellingPrice(Number(e.target.value))}
-                  className="h-11 md:h-10 text-sm md:text-xs font-mono bg-card"
+                  className="font-mono"
                 />
               </div>
             </div>
           </div>
 
-          <div className="pt-2 flex gap-3">
-            <Button type="button" variant="outline" onClick={() => setShowModal(false)} className="flex-1 h-11 md:h-10 text-xs font-bold">
+          <div className="flex gap-3 pt-2">
+            <Button type="button" variant="outline" className="flex-1" onClick={() => setShowModal(false)}>
               Batal
             </Button>
-            <Button type="submit" disabled={loading} className="flex-1 h-11 md:h-10 text-xs font-bold bg-primary text-white hover:bg-primary/90">
+            <Button type="submit" disabled={loading} className="flex-1">
               {loading ? 'Menyimpan...' : 'Simpan Produk'}
             </Button>
           </div>
@@ -441,5 +448,3 @@ export const HQMasterModule: React.FC<HQMasterModuleProps> = ({
     </div>
   );
 };
-
-

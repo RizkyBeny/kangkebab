@@ -25,6 +25,11 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({ tran
   );
   const [paymentMethod, setPaymentMethod] = useState(transaction.paymentMethod || 'CASH');
   const [paymentStatus, setPaymentStatus] = useState(transaction.paymentStatus || 'PAID');
+
+  const isResellerDiscount = transaction.channel === 'OFFLINE' && transaction.isReseller;
+  const [discountPercent, setDiscountPercent] = useState<string>(
+    isResellerDiscount && transaction.discountPercent > 0 ? String(transaction.discountPercent) : ''
+  );
   
   // Clone items for editing
   const [items, setItems] = useState(
@@ -50,12 +55,27 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({ tran
       return;
     }
 
+    let parsedDiscount = null;
+    if (isResellerDiscount) {
+      if (discountPercent === '') {
+        parsedDiscount = 0;
+      } else {
+        parsedDiscount = Number(discountPercent);
+        if (!Number.isFinite(parsedDiscount) || parsedDiscount < 0 || parsedDiscount > 100) {
+          setErrorMsg('Diskon reseller harus antara 0% dan 100%');
+          setLoading(false);
+          return;
+        }
+      }
+    }
+
     try {
       const payload = {
         id: transaction.id,
         ecommerceActualPrice: ecommerceActualPrice === '' ? null : Number(ecommerceActualPrice),
         paymentMethod,
         paymentStatus,
+        discountPercent: parsedDiscount,
         items: items.map(i => ({
           id: i.id,
           qty: Number(i.qty),
@@ -86,38 +106,36 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({ tran
       onOpenChange={(open) => !open && onClose()}
       title={`Edit Transaksi: ${transaction.transactionNumber}`}
     >
-      <div className="space-y-4">
+      <div className="space-y-5">
         {errorMsg && (
           <Alert variant="destructive">
             <AlertDescription className="text-xs">{errorMsg}</AlertDescription>
           </Alert>
         )}
 
-        <div className="space-y-4 max-h-[60vh] overflow-y-auto px-1 pb-4">
+        <div className="space-y-4 max-h-[60vh] overflow-y-auto pb-4">
           <div className="space-y-2">
-            <Label className="text-xs font-bold text-foreground/80">Item Produk</Label>
-            <div className="border border-border rounded-lg p-3 space-y-3 bg-muted/50">
+            <Label className="text-sm font-medium">Item Produk</Label>
+            <div className="space-y-3 rounded-lg border border-border p-3">
               {items.map(item => (
-                <div key={item.id} className="grid grid-cols-12 gap-2 items-center">
-                  <div className="col-span-12 md:col-span-5 text-xs font-medium truncate" title={item.name}>
+                <div key={item.id} className="grid grid-cols-12 gap-2 items-end">
+                  <div className="col-span-12 md:col-span-5 text-xs font-medium truncate self-center" title={item.name}>
                     {item.name}
                   </div>
-                  <div className="col-span-4 md:col-span-2">
-                    <Label className="text-[10px] text-muted-foreground mb-1 block">Qty</Label>
-                    <Input 
-                      type="number" 
-                      value={item.qty} 
-                      onChange={e => handleUpdateItem(item.id, 'qty', e.target.value)} 
-                      className="h-8 text-xs" 
+                  <div className="col-span-4 md:col-span-2 space-y-1">
+                    <Label className="text-xs text-muted-foreground">Qty</Label>
+                    <Input
+                      type="number"
+                      value={item.qty}
+                      onChange={e => handleUpdateItem(item.id, 'qty', e.target.value)}
                     />
                   </div>
-                  <div className="col-span-8 md:col-span-5">
-                    <Label className="text-[10px] text-muted-foreground mb-1 block">Harga Jual (Rp)</Label>
-                    <Input 
-                      type="number" 
-                      value={item.sellingPrice} 
-                      onChange={e => handleUpdateItem(item.id, 'sellingPrice', e.target.value)} 
-                      className="h-8 text-xs" 
+                  <div className="col-span-8 md:col-span-5 space-y-1">
+                    <Label className="text-xs text-muted-foreground">Harga Jual (Rp)</Label>
+                    <Input
+                      type="number"
+                      value={item.sellingPrice}
+                      onChange={e => handleUpdateItem(item.id, 'sellingPrice', e.target.value)}
                     />
                   </div>
                 </div>
@@ -126,25 +144,40 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({ tran
           </div>
 
           <div className="space-y-2">
-            <Label className="text-xs font-bold text-foreground/80">
+            <Label className="text-sm font-medium">
               Overwrite Total Omzet (Harga Aktual Ecommerce)
               {transaction.channel === 'ONLINE' && <span className="text-destructive"> *</span>}
             </Label>
-            <Input 
-              type="number" 
-              placeholder="Kosongkan jika ingin mengikuti total per item" 
-              value={ecommerceActualPrice} 
-              onChange={e => setEcommerceActualPrice(e.target.value)} 
-              className="h-9 text-xs" 
+            <Input
+              type="number"
+              placeholder="Kosongkan jika ingin mengikuti total per item"
+              value={ecommerceActualPrice}
+              onChange={e => setEcommerceActualPrice(e.target.value)}
             />
-            <p className="text-[10px] text-muted-foreground">Jika diisi, nilai ini akan menggantikan Total Omzet struk ini.</p>
+            <p className="text-xs text-muted-foreground">Jika diisi, nilai ini akan menggantikan Total Omzet struk ini.</p>
           </div>
+
+          {isResellerDiscount && (
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Diskon Reseller (%)</Label>
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                step="0.1"
+                placeholder="cth: 10"
+                value={discountPercent}
+                onChange={e => setDiscountPercent(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">Diskon dihitung dari subtotal item dan menggantikan Total Omzet.</p>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label className="text-xs font-bold text-foreground/80">Metode Pembayaran</Label>
+              <Label className="text-sm font-medium">Metode Pembayaran</Label>
               <Select value={paymentMethod} onValueChange={(val) => setPaymentMethod(val || 'CASH')}>
-                <SelectTrigger className="h-9 text-xs">
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -156,9 +189,9 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({ tran
               </Select>
             </div>
             <div className="space-y-2">
-              <Label className="text-xs font-bold text-foreground/80">Status Pembayaran</Label>
+              <Label className="text-sm font-medium">Status Pembayaran</Label>
               <Select value={paymentStatus} onValueChange={(val) => setPaymentStatus(val || 'PAID')}>
-                <SelectTrigger className="h-9 text-xs">
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -170,12 +203,12 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({ tran
           </div>
         </div>
 
-        <div className="pt-4 border-t border-border flex justify-end gap-3">
-          <Button variant="outline" onClick={onClose} className="h-9 text-xs font-semibold px-4">
+        <div className="flex justify-end gap-3 border-t border-border pt-4">
+          <Button variant="outline" onClick={onClose}>
             Batal
           </Button>
-          <Button onClick={handleSave} disabled={loading} className="h-9 text-xs font-semibold px-6">
-            {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Check className="w-4 h-4 mr-2" />}
+          <Button onClick={handleSave} disabled={loading}>
+            {loading ? <Loader2 className="animate-spin" /> : <Check />}
             Simpan Perubahan
           </Button>
         </div>

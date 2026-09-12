@@ -3,11 +3,11 @@
 import React, { useState } from 'react';
 import { SalesTransaction, Branch, User } from '@/types';
 import { formatRupiah, formatDate } from '@/constants';
-import { History, Download, Filter, Eye, Store, Smartphone, Trash2, Loader2, AlertTriangle, DollarSign, ShoppingBag, Music2 } from 'lucide-react';
+import { AlertTriangle, DollarSign, Download, History, Loader2, Music2, Pencil, ShoppingBag, Smartphone, Store, Trash2 } from 'lucide-react';
 import { ReceiptModal } from './ReceiptModal';
 import { EditTransactionModal } from './EditTransactionModal';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -17,6 +17,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { ResponsiveModal } from '@/components/ui/ResponsiveModal';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
@@ -26,6 +27,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { PageHeader } from '@/components/shared/PageHeader';
+import { EmptyState } from '@/components/shared/EmptyState';
 
 interface RevenueHistoryModuleProps {
   transactions: SalesTransaction[];
@@ -33,6 +36,34 @@ interface RevenueHistoryModuleProps {
   currentUser: User;
   onRefresh?: () => void;
 }
+
+const channelBadge = (channel: SalesTransaction['channel'], platform?: string | null) => {
+  const isOnline = channel === 'ONLINE';
+  return (
+    <Badge
+      className={
+        isOnline
+          ? 'border-transparent bg-sky-100 text-sky-700'
+          : 'border-transparent bg-emerald-100 text-emerald-700'
+      }
+    >
+      {isOnline ? <Smartphone /> : <Store />}
+      {channel} {platform && platform !== 'NONE' ? `(${platform})` : ''}
+    </Badge>
+  );
+};
+
+const paymentBadge = (status?: string | null) => (
+  <Badge
+    className={
+      status === 'PAID'
+        ? 'border-transparent bg-emerald-100 text-emerald-700'
+        : 'border-transparent bg-amber-100 text-amber-700'
+    }
+  >
+    {status || '-'}
+  </Badge>
+);
 
 export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
   transactions,
@@ -89,6 +120,9 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
       'Cabang',
       'Channel',
       'Platform',
+      'Reseller',
+      'Diskon (%)',
+      'Diskon (Rp)',
       'Customer',
       'No. HP',
       'Metode Pembayaran',
@@ -106,6 +140,9 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
         `"${t.branch.name}"`,
         t.channel,
         t.platform || '-',
+        t.isReseller ? 'YA' : 'TIDAK',
+        t.discountPercent > 0 ? t.discountPercent : 0,
+        t.discountAmount > 0 ? t.discountAmount : 0,
         `"${t.customerName || '-'}"`,
         `"${t.customerPhone || '-'}"`,
         t.paymentMethod || '-',
@@ -226,38 +263,26 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
 
   return (
     <div className="space-y-6 md:space-y-8">
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div>
-          <h2 className="text-xl md:text-2xl font-bold text-foreground tracking-tight flex items-start gap-2 leading-tight">
-            <History className="w-6 h-6 text-foreground/80 flex-shrink-0 mt-0.5 md:mt-1" />
-            <span>Riwayat Pendapatan &amp; Transaksi</span>
-          </h2>
-          <p className="text-xs md:text-sm text-muted-foreground mt-1.5 font-medium leading-relaxed max-w-lg">
-            Pantau seluruh riwayat transaksi omzet secara terperinci (Online &amp; Offline). Anda juga bisa mengunduh ulang struk PDF kapan saja.
-          </p>
-        </div>
-
-        <div className="flex items-center space-x-3 flex-wrap gap-y-2">
-          {currentUser.role === 'HQ_ADMIN' && (
-            <div className="flex items-center space-x-1.5">
-              <Filter className="w-4 h-4 text-muted-foreground" />
+      <PageHeader
+        title="Riwayat Pendapatan & Transaksi"
+        description="Pantau seluruh riwayat transaksi omzet secara terperinci (Online & Offline). Anda juga bisa mengunduh ulang struk PDF kapan saja."
+        icon={History}
+        actions={
+          <>
+            {currentUser.role === 'HQ_ADMIN' && (
               <Select value={selectedBranchId} onValueChange={(val) => setSelectedBranchId(val || '')}>
-                <SelectTrigger className="w-40 h-10 md:h-9 text-xs font-semibold bg-card shadow-sm border-border">
+                <SelectTrigger className="w-40">
                   <SelectValue placeholder="Semua Cabang" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL" className="text-xs">Semua Cabang</SelectItem>
+                  <SelectItem value="ALL">Semua Cabang</SelectItem>
                   {branches.map((b) => (
-                    <SelectItem key={b.id} value={b.id} className="text-xs">
-                      {b.name}
-                    </SelectItem>
+                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-          )}
+            )}
 
-          <div className="flex items-center space-x-1.5">
             <Select
               value={selectedChannel}
               onValueChange={(val) => {
@@ -265,134 +290,110 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
                 if (val !== 'ONLINE') setSelectedPlatform('ALL');
               }}
             >
-              <SelectTrigger className="w-40 h-10 md:h-9 text-xs font-semibold bg-card shadow-sm border-border">
+              <SelectTrigger className="w-40">
                 <SelectValue placeholder="Semua Channel" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="ALL" className="text-xs">Semua Channel</SelectItem>
-                <SelectItem value="OFFLINE" className="text-xs">Offline Toko</SelectItem>
-                <SelectItem value="ONLINE" className="text-xs">Online (Shopee/TikTok)</SelectItem>
+                <SelectItem value="ALL">Semua Channel</SelectItem>
+                <SelectItem value="OFFLINE">Offline Toko</SelectItem>
+                <SelectItem value="ONLINE">Online (Shopee/TikTok)</SelectItem>
               </SelectContent>
             </Select>
-          </div>
 
-          {selectedChannel === 'ONLINE' && (
-            <div className="flex items-center space-x-1.5">
+            {selectedChannel === 'ONLINE' && (
               <Select value={selectedPlatform} onValueChange={(val) => setSelectedPlatform(val || '')}>
-                <SelectTrigger className="w-40 h-10 md:h-9 text-xs font-semibold bg-card shadow-sm border-border">
+                <SelectTrigger className="w-40">
                   <SelectValue placeholder="Semua Platform" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL" className="text-xs">Semua Platform</SelectItem>
-                  <SelectItem value="SHOPEE" className="text-xs">Shopee</SelectItem>
-                  <SelectItem value="TIKTOK" className="text-xs">TikTok</SelectItem>
+                  <SelectItem value="ALL">Semua Platform</SelectItem>
+                  <SelectItem value="SHOPEE">Shopee</SelectItem>
+                  <SelectItem value="TIKTOK">TikTok</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-          )}
-          
-          <Button variant="outline" onClick={handleExportCSV} className="h-10 md:h-9 text-xs font-bold bg-card shadow-sm border-border">
-            <Download className="w-4 h-4 mr-2" />
-            Export CSV
-          </Button>
-        </div>
-      </div>
+            )}
+
+            <Button variant="outline" onClick={handleExportCSV}>
+              <Download />
+              Export CSV
+            </Button>
+          </>
+        }
+      />
 
       {/* Channel Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="shadow-sm border-border rounded-xl">
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Total Omzet</CardTitle>
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <DollarSign className="w-4 h-4" />
-            </div>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Omzet</CardTitle>
+            <CardAction>
+              <DollarSign className="size-4 text-muted-foreground" />
+            </CardAction>
           </CardHeader>
-          <CardContent>
-            <div className="text-xl md:text-2xl font-black text-foreground font-mono tracking-tight">
-              {formatRupiah(historyTotals.total)}
-            </div>
-            <div className="flex items-center space-x-1 text-[11px] text-emerald-600 font-bold mt-1">
-              <span>{filteredTransactions.length} Transaksi</span>
-            </div>
+          <CardContent className="space-y-1">
+            <div className="text-2xl font-bold tracking-tight tabular-nums">{formatRupiah(historyTotals.total)}</div>
+            <p className="text-xs text-muted-foreground">{filteredTransactions.length} transaksi</p>
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm border-border rounded-xl">
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Channel Offline</CardTitle>
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <Store className="w-4 h-4" />
-            </div>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Channel Offline</CardTitle>
+            <CardAction>
+              <Store className="size-4 text-muted-foreground" />
+            </CardAction>
           </CardHeader>
-          <CardContent>
-            <div className="text-xl md:text-2xl font-black text-foreground font-mono tracking-tight">
-              {formatRupiah(historyTotals.offline)}
-            </div>
-            <div className="text-[11px] text-muted-foreground font-medium mt-1">
-              Penjualan langsung di kasir toko fisik
-            </div>
+          <CardContent className="space-y-1">
+            <div className="text-2xl font-bold tracking-tight tabular-nums">{formatRupiah(historyTotals.offline)}</div>
+            <p className="text-xs text-muted-foreground">Penjualan langsung di kasir toko fisik</p>
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm border-border rounded-xl">
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Channel Shopee</CardTitle>
-            <div className="w-8 h-8 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center">
-              <ShoppingBag className="w-4 h-4" />
-            </div>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Channel Shopee</CardTitle>
+            <CardAction>
+              <ShoppingBag className="size-4 text-muted-foreground" />
+            </CardAction>
           </CardHeader>
-          <CardContent>
-            <div className="text-xl md:text-2xl font-black text-foreground font-mono tracking-tight">
-              {formatRupiah(historyTotals.shopee)}
-            </div>
-            <div className="text-[11px] text-muted-foreground font-medium mt-1">
-              Penjualan via Shopee Marketplace
-            </div>
+          <CardContent className="space-y-1">
+            <div className="text-2xl font-bold tracking-tight tabular-nums">{formatRupiah(historyTotals.shopee)}</div>
+            <p className="text-xs text-muted-foreground">Penjualan via Shopee Marketplace</p>
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm border-border rounded-xl">
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Channel TikTok</CardTitle>
-            <div className="w-8 h-8 rounded-lg bg-cyan-50 text-cyan-600 flex items-center justify-center">
-              <Music2 className="w-4 h-4" />
-            </div>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Channel TikTok</CardTitle>
+            <CardAction>
+              <Music2 className="size-4 text-muted-foreground" />
+            </CardAction>
           </CardHeader>
-          <CardContent>
-            <div className="text-xl md:text-2xl font-black text-foreground font-mono tracking-tight">
-              {formatRupiah(historyTotals.tiktok)}
-            </div>
-            <div className="text-[11px] text-muted-foreground font-medium mt-1">
-              Penjualan via TikTok Shop
-            </div>
+          <CardContent className="space-y-1">
+            <div className="text-2xl font-bold tracking-tight tabular-nums">{formatRupiah(historyTotals.tiktok)}</div>
+            <p className="text-xs text-muted-foreground">Penjualan via TikTok Shop</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Bulk Selection Toolbar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 md:p-4 rounded-xl border border-border bg-muted/30">
+      <div className="flex flex-col gap-3 rounded-lg border bg-muted/30 p-3 md:flex-row md:items-center md:justify-between md:p-4">
         <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              className="w-4 h-4 rounded border-border accent-rose-600"
+          <label className="flex items-center gap-2 select-none">
+            <Checkbox
               checked={allFilteredSelected}
-              onChange={toggleSelectAll}
+              onCheckedChange={toggleSelectAll}
               disabled={filteredTransactions.length === 0}
             />
-            <span className="text-xs font-bold text-foreground/80">Pilih Semua ({filteredTransactions.length})</span>
+            <span className="text-sm font-medium">Pilih Semua ({filteredTransactions.length})</span>
           </label>
-          <span className="text-xs text-muted-foreground font-medium">
+          <span className="text-sm text-muted-foreground">
             {selectedIds.size > 0 ? `${selectedIds.size} transaksi dipilih` : 'Tidak ada yang dipilih'}
           </span>
         </div>
         <div className="flex items-center gap-2">
           {selectedIds.size > 0 && (
-            <Button
-              variant="outline"
-              className="h-9 text-xs font-bold bg-card border-border hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200"
-              onClick={() => setSelectedIds(new Set())}
-            >
+            <Button variant="outline" onClick={() => setSelectedIds(new Set())}>
               Batalkan Pilihan
             </Button>
           )}
@@ -400,119 +401,97 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
             variant="outline"
             onClick={openBulkDelete}
             disabled={selectedIds.size === 0}
-            className="h-9 text-xs font-bold bg-card border-border text-rose-600 hover:bg-rose-50 hover:border-rose-200 disabled:opacity-40"
+            className="text-rose-600 hover:bg-rose-50 hover:border-rose-200 disabled:opacity-40"
           >
-            <Trash2 className="w-4 h-4 mr-2" />
+            <Trash2 />
             Hapus Terpilih
           </Button>
         </div>
       </div>
 
       {/* Desktop Table View */}
-      <Card className="shadow-sm border-border hidden md:block rounded-xl overflow-hidden">
+      <Card className="hidden md:block overflow-hidden">
         <Table>
-          <TableHeader className="bg-muted/50 border-b border-border/50">
-            <TableRow className="hover:bg-transparent">
-              <TableHead className="w-10 text-[11px] font-bold text-muted-foreground uppercase tracking-wider py-4">
-                <input
-                  type="checkbox"
-                  className="w-4 h-4 rounded border-border accent-rose-600"
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10">
+                <Checkbox
                   checked={allFilteredSelected}
-                  onChange={toggleSelectAll}
+                  onCheckedChange={toggleSelectAll}
                   disabled={filteredTransactions.length === 0}
                 />
               </TableHead>
-              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider py-4">No. Struk</TableHead>
-              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Cabang &amp; Waktu</TableHead>
-              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Channel</TableHead>
-              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Produk Terjual</TableHead>
-              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Total Omzet</TableHead>
-              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Pembayaran</TableHead>
-              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Aksi</TableHead>
+              <TableHead>No. Struk</TableHead>
+              <TableHead>Cabang &amp; Waktu</TableHead>
+              <TableHead>Channel</TableHead>
+              <TableHead>Produk Terjual</TableHead>
+              <TableHead>Total Omzet</TableHead>
+              <TableHead>Pembayaran</TableHead>
+              <TableHead className="text-right">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredTransactions.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="h-32 text-center text-muted-foreground text-sm">
+                <TableCell colSpan={8} className="h-32 text-center text-sm text-muted-foreground">
                   Tidak ada transaksi yang cocok dengan filter.
                 </TableCell>
               </TableRow>
             ) : (
               filteredTransactions.map((t) => (
-                <TableRow key={t.id} className={`group transition-colors ${selectedIds.has(t.id) ? 'bg-rose-50/40' : 'hover:bg-muted/30'}`}>
-                  <TableCell className="py-4">
-                    <input
-                      type="checkbox"
-                      className="w-4 h-4 rounded border-border accent-rose-600"
+                <TableRow key={t.id} className={selectedIds.has(t.id) ? 'bg-muted/50' : undefined}>
+                  <TableCell>
+                    <Checkbox
                       checked={selectedIds.has(t.id)}
-                      onChange={() => toggleSelect(t.id)}
+                      onCheckedChange={() => toggleSelect(t.id)}
                     />
                   </TableCell>
-                  <TableCell className="font-mono font-bold text-foreground text-sm py-4">{t.transactionNumber}</TableCell>
+                  <TableCell className="font-mono font-semibold">{t.transactionNumber}</TableCell>
                   <TableCell>
-                    <div className="font-bold text-foreground text-sm">{t.branch.name}</div>
-                    <div className="text-xs text-muted-foreground font-medium mt-0.5">{formatDate(t.createdAt)}</div>
+                    <div className="font-medium">{t.branch.name}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">{formatDate(t.createdAt)}</div>
                   </TableCell>
                   <TableCell>
-                    <Badge
-                      variant="outline"
-                      className={`text-xs font-bold py-1 px-2 ${
-                        t.channel === 'ONLINE'
-                          ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                          : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                      }`}
-                    >
-                      {t.channel === 'ONLINE' ? <Smartphone className="w-3.5 h-3.5 mr-1" /> : <Store className="w-3.5 h-3.5 mr-1" />}
-                      {t.channel} {t.platform && t.platform !== 'NONE' ? `(${t.platform})` : ''}
-                    </Badge>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {channelBadge(t.channel, t.platform)}
+                      {t.isReseller && <Badge className="border-transparent bg-amber-100 text-amber-800">Reseller</Badge>}
+                    </div>
+                    {t.isReseller && t.discountPercent > 0 && (
+                      <div className="mt-1 text-xs text-rose-600 font-medium">
+                        -{t.discountPercent}% ({formatRupiah(t.discountAmount)})
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell className="text-xs">
-                    <div className="space-y-1">
+                    <div className="space-y-1 max-w-[200px]">
                       {t.items.map((i) => (
-                        <div key={i.id} className="text-foreground/80 font-medium truncate max-w-[200px]" title={`${i.masterProduct.name} (${i.qty}x)`}>
-                          • {i.masterProduct.name} <span className="text-muted-foreground">({i.qty}x)</span>
+                        <div key={i.id} className="truncate" title={`${i.masterProduct.name} (${i.qty}x)`}>
+                          {i.masterProduct.name} <span className="text-muted-foreground">({i.qty}x)</span>
                         </div>
                       ))}
                     </div>
                   </TableCell>
-                  <TableCell className="font-bold text-foreground font-mono text-sm">
-                    {formatRupiah(t.totalAmount)}
-                  </TableCell>
+                  <TableCell className="font-semibold tabular-nums">{formatRupiah(t.totalAmount)}</TableCell>
                   <TableCell>
-                    <div className="text-xs font-bold text-foreground/80">{t.paymentMethod || '-'}</div>
-                    <Badge variant="outline" className={`mt-1 text-[10px] ${t.paymentStatus === 'PAID' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
-                      {t.paymentStatus || '-'}
-                    </Badge>
+                    <div className="text-xs font-medium">{t.paymentMethod || '-'}</div>
+                    <div className="mt-1">{paymentBadge(t.paymentStatus)}</div>
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setEditingTransaction(t)}
-                        className="h-8 text-xs font-bold bg-card px-2"
-                        title="Edit Transaksi"
-                      >
-                        ✏️ Edit
+                    <div className="flex items-center justify-end gap-1.5">
+                      <Button variant="outline" size="sm" onClick={() => setEditingTransaction(t)} title="Edit Transaksi">
+                        <Pencil /> Edit
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setActiveReceipt(t)}
-                        className="h-8 text-xs font-bold bg-card px-2"
-                        title="Unduh Struk PDF"
-                      >
-                        <Download className="w-3.5 h-3.5 text-foreground/80" />
+                      <Button variant="outline" size="sm" onClick={() => setActiveReceipt(t)} title="Unduh Struk PDF">
+                        <Download />
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => { setDeleteError(''); setDeletingTransaction(t); }}
-                        className="h-8 text-xs font-bold bg-card px-2 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200"
+                        className="text-rose-600 hover:bg-rose-50 hover:border-rose-200"
                         title="Hapus Transaksi"
                       >
-                        <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                        <Trash2 />
                       </Button>
                     </div>
                   </TableCell>
@@ -526,83 +505,79 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
       {/* Mobile Stacked Card View */}
       <div className="md:hidden space-y-4">
         {filteredTransactions.length === 0 ? (
-          <div className="p-8 text-center text-muted-foreground text-sm bg-card rounded-xl border border-border">
-            Tidak ada transaksi.
-          </div>
+          <EmptyState
+            icon={History}
+            title="Tidak ada transaksi"
+            description="Tidak ada transaksi yang cocok dengan filter saat ini."
+          />
         ) : (
           filteredTransactions.map((t) => (
-            <Card key={t.id} className="border-border shadow-sm rounded-xl overflow-hidden">
-              <CardContent className="p-4 space-y-4">
-                <div className="flex justify-between items-start">
+            <Card key={t.id}>
+              <CardContent className="space-y-4">
+                <div className="flex items-start justify-between gap-2">
                   <div className="flex items-start gap-2">
-                    <input
-                      type="checkbox"
-                      className="w-4 h-4 mt-0.5 rounded border-border accent-rose-600"
+                    <Checkbox
                       checked={selectedIds.has(t.id)}
-                      onChange={() => toggleSelect(t.id)}
+                      onCheckedChange={() => toggleSelect(t.id)}
+                      className="mt-0.5"
                     />
                     <div>
-                      <div className="font-mono font-bold text-foreground text-sm">{t.transactionNumber}</div>
-                      <div className="text-[11px] text-muted-foreground font-medium mt-0.5">{formatDate(t.createdAt)}</div>
+                      <div className="font-mono font-semibold">{t.transactionNumber}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">{formatDate(t.createdAt)}</div>
                     </div>
                   </div>
-                  <Badge
-                    variant="outline"
-                    className={`text-[10px] font-bold ${
-                      t.channel === 'ONLINE'
-                        ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                        : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                    }`}
-                  >
-                    {t.channel} {t.platform && t.platform !== 'NONE' ? `(${t.platform})` : ''}
-                  </Badge>
+                  {channelBadge(t.channel, t.platform)}
                 </div>
 
-                <div className="bg-muted/50 rounded-lg p-3 space-y-2 border border-border/50">
-                  <div className="flex justify-between items-center text-xs pb-2 border-b border-border/60">
-                    <span className="text-muted-foreground font-medium">Cabang</span>
-                    <span className="font-bold text-foreground/80">{t.branch.name}</span>
-                  </div>
-                  <div className="pt-1">
-                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Item Terjual ({t.items.length})</div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Badge variant="secondary">{t.branch.name}</Badge>
+                  {t.isReseller && <Badge className="border-transparent bg-amber-100 text-amber-800">Reseller</Badge>}
+                  {t.isReseller && t.discountPercent > 0 && (
+                    <span className="text-xs text-rose-600 font-medium">
+                      Diskon -{t.discountPercent}% ({formatRupiah(t.discountAmount)})
+                    </span>
+                  )}
+                </div>
+
+                <div className="divide-y divide-border/70 text-sm">
+                  <div className="py-1.5 first:pt-0">
+                    <div className="text-xs text-muted-foreground mb-1">Item Terjual ({t.items.length})</div>
                     <div className="space-y-1">
                       {t.items.map((i) => (
-                        <div key={i.id} className="flex justify-between text-[11px] font-medium text-foreground/80">
+                        <div key={i.id} className="flex justify-between text-xs">
                           <span className="truncate pr-2">{i.masterProduct.name}</span>
-                          <span className="whitespace-nowrap">{i.qty}x</span>
+                          <span className="tabular-nums">{i.qty}x</span>
                         </div>
                       ))}
                     </div>
                   </div>
-                  <div className="pt-2 border-t border-border/60 flex justify-between items-center text-sm">
-                    <span className="text-foreground/80 font-bold">Total Omzet</span>
-                    <span className="font-mono font-bold text-foreground">{formatRupiah(t.totalAmount)}</span>
+                  <div className="flex items-center justify-between py-1.5">
+                    <span className="font-medium">Total Omzet</span>
+                    <span className="font-semibold tabular-nums">{formatRupiah(t.totalAmount)}</span>
                   </div>
-                  <div className="pt-2 border-t border-border/60 flex justify-between items-center text-xs">
-                    <span className="text-foreground/80 font-medium">Pembayaran</span>
+                  <div className="flex items-center justify-between py-1.5 last:pb-0">
+                    <span className="text-muted-foreground">Pembayaran</span>
                     <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-foreground/80">{t.paymentMethod || '-'}</span>
-                      <Badge variant="outline" className={`text-[9px] px-1 py-0 h-4 ${t.paymentStatus === 'PAID' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
-                        {t.paymentStatus || '-'}
-                      </Badge>
+                      <span>{t.paymentMethod || '-'}</span>
+                      {paymentBadge(t.paymentStatus)}
                     </div>
                   </div>
                 </div>
 
-                <div className="flex gap-2">
-                  <Button variant="outline" className="flex-1 h-10 text-xs font-bold" onClick={() => setEditingTransaction(t)}>
-                    ✏️ Edit
+                <div className="flex gap-2 pt-1">
+                  <Button variant="outline" className="flex-1" onClick={() => setEditingTransaction(t)}>
+                    <Pencil /> Edit
                   </Button>
-                  <Button variant="outline" className="flex-1 h-10 text-xs font-bold" onClick={() => setActiveReceipt(t)}>
-                    <Eye className="w-4 h-4 mr-2" /> Struk
+                  <Button variant="outline" className="flex-1" onClick={() => setActiveReceipt(t)}>
+                    <Download /> Struk
                   </Button>
                   <Button
                     variant="outline"
-                    className="h-10 w-10 px-0 text-rose-500 hover:bg-rose-50 hover:border-rose-200"
-                    title="Hapus Transaksi"
                     onClick={() => { setDeleteError(''); setDeletingTransaction(t); }}
+                    className="text-rose-600 hover:bg-rose-50 hover:border-rose-200"
+                    title="Hapus Transaksi"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 />
                   </Button>
                 </div>
               </CardContent>
@@ -624,80 +599,76 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
         />
       )}
 
-      {deletingTransaction && (
-        <ResponsiveModal
-          open={true}
-          onOpenChange={(open) => !open && !deleteLoading && setDeletingTransaction(null)}
-          title="Hapus Transaksi"
-          icon={<AlertTriangle className="w-5 h-5 text-rose-500" />}
-        >
-          <div className="space-y-4">
+      {/* Delete Single */}
+      <ResponsiveModal
+        open={!!deletingTransaction}
+        onOpenChange={(open) => !open && !deleteLoading && setDeletingTransaction(null)}
+        title="Hapus Transaksi"
+      >
+        {deletingTransaction && (
+          <div className="space-y-5">
             {deleteError && (
               <Alert variant="destructive">
                 <AlertDescription className="text-xs">{deleteError}</AlertDescription>
               </Alert>
             )}
 
-            <div className="bg-muted/50 rounded-xl p-4 border border-border space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-muted-foreground font-medium">No. Struk</span>
-                <span className="font-mono text-sm font-bold text-foreground">{deletingTransaction.transactionNumber}</span>
+            <div className="divide-y divide-border/70 rounded-lg border border-border px-4 text-sm">
+              <div className="flex items-center justify-between py-2.5">
+                <span className="text-muted-foreground">No. Struk</span>
+                <span className="font-mono font-medium">{deletingTransaction.transactionNumber}</span>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-muted-foreground font-medium">Cabang</span>
-                <span className="text-sm font-bold text-foreground/80">{deletingTransaction.branch.name}</span>
+              <div className="flex items-center justify-between py-2.5">
+                <span className="text-muted-foreground">Cabang</span>
+                <span className="font-medium">{deletingTransaction.branch.name}</span>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-muted-foreground font-medium">Total Omzet</span>
-                <span className="font-mono text-sm font-bold text-foreground">{formatRupiah(deletingTransaction.totalAmount)}</span>
+              <div className="flex items-center justify-between py-2.5">
+                <span className="text-muted-foreground">Total Omzet</span>
+                <span className="font-semibold tabular-nums">{formatRupiah(deletingTransaction.totalAmount)}</span>
               </div>
             </div>
 
-            <Alert variant="destructive" className="text-xs">
+            <Alert variant="destructive">
               <AlertDescription className="text-xs">
                 Transaksi ini akan dihapus permanen. Stok sebanyak {deletingTransaction.items.reduce((acc, i) => acc + i.qty, 0)} unit ({deletingTransaction.items.length} item) akan dikembalikan ke stok jual cabang.
               </AlertDescription>
             </Alert>
 
-            <div className="pt-4 border-t border-border flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setDeletingTransaction(null)} disabled={deleteLoading} className="h-9 text-xs font-semibold px-4">
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="outline" onClick={() => setDeletingTransaction(null)} disabled={deleteLoading}>
                 Batal
               </Button>
-              <Button
-                onClick={handleDelete}
-                disabled={deleteLoading}
-                className="h-9 text-xs font-semibold px-6 bg-rose-600 text-white hover:bg-rose-700"
-              >
-                {deleteLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+              <Button variant="destructive" onClick={handleDelete} disabled={deleteLoading}>
+                {deleteLoading ? <Loader2 className="animate-spin" /> : <Trash2 />}
                 Hapus Transaksi
               </Button>
             </div>
           </div>
-        </ResponsiveModal>
-      )}
+        )}
+      </ResponsiveModal>
 
-      {confirmedIds.length > 0 && (
-        <ResponsiveModal
-          open={true}
-          onOpenChange={(open) => !open && !deleteLoading && setConfirmedIds([])}
-          title="Hapus Transaksi Terpilih"
-          icon={<AlertTriangle className="w-5 h-5 text-rose-500" />}
-        >
-          <div className="space-y-4">
+      {/* Delete Bulk */}
+      <ResponsiveModal
+        open={confirmedIds.length > 0}
+        onOpenChange={(open) => !open && !deleteLoading && setConfirmedIds([])}
+        title="Hapus Transaksi Terpilih"
+      >
+        {confirmedIds.length > 0 && (
+          <div className="space-y-5">
             {bulkError && (
               <Alert variant="destructive">
                 <AlertDescription className="text-xs">{bulkError}</AlertDescription>
               </Alert>
             )}
 
-            <div className="bg-muted/50 rounded-xl p-4 border border-border space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-muted-foreground font-medium">Jumlah Transaksi</span>
-                <span className="font-mono text-sm font-bold text-foreground">{confirmedIds.length} transaksi</span>
+            <div className="divide-y divide-border/70 rounded-lg border border-border px-4 text-sm">
+              <div className="flex items-center justify-between py-2.5">
+                <span className="text-muted-foreground">Jumlah Transaksi</span>
+                <span className="font-medium tabular-nums">{confirmedIds.length} transaksi</span>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-muted-foreground font-medium">Total Omzet</span>
-                <span className="font-mono text-sm font-bold text-foreground">
+              <div className="flex items-center justify-between py-2.5">
+                <span className="text-muted-foreground">Total Omzet</span>
+                <span className="font-semibold tabular-nums">
                   {formatRupiah(confirmedIds.reduce((acc, id) => {
                     const tx = localTransactions.find((t) => t.id === id);
                     return acc + (tx?.totalAmount || 0);
@@ -706,39 +677,35 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
               </div>
             </div>
 
-            <Alert variant="destructive" className="text-xs">
+            <Alert variant="destructive">
               <AlertDescription className="text-xs">
                 {confirmedIds.length} transaksi terpilih akan dihapus permanen. Seluruh stok produk yang terjual akan dikembalikan ke stok jual cabang. Tindakan ini tidak dapat dibatalkan.
               </AlertDescription>
             </Alert>
 
-            <div className="max-h-[40vh] overflow-y-auto rounded-xl border border-border bg-muted/30">
+            <div className="max-h-[40vh] overflow-y-auto rounded-lg border border-border">
               {localTransactions
                 .filter((t) => confirmedIds.includes(t.id))
                 .map((t) => (
-                  <div key={t.id} className="flex justify-between items-center px-4 py-2 border-b border-border/60 last:border-0">
-                    <span className="font-mono text-[11px] font-bold text-foreground/80 truncate pr-2">{t.transactionNumber}</span>
-                    <span className="font-mono text-[11px] font-bold text-foreground whitespace-nowrap">{formatRupiah(t.totalAmount)}</span>
+                  <div key={t.id} className="flex items-center justify-between border-b border-border/70 px-4 py-2 text-xs last:border-0">
+                    <span className="font-mono font-medium truncate pr-2">{t.transactionNumber}</span>
+                    <span className="font-semibold tabular-nums">{formatRupiah(t.totalAmount)}</span>
                   </div>
                 ))}
             </div>
 
-            <div className="pt-4 border-t border-border flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setConfirmedIds([])} disabled={deleteLoading} className="h-9 text-xs font-semibold px-4">
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="outline" onClick={() => setConfirmedIds([])} disabled={deleteLoading}>
                 Batal
               </Button>
-              <Button
-                onClick={handleBulkDelete}
-                disabled={deleteLoading}
-                className="h-9 text-xs font-semibold px-6 bg-rose-600 text-white hover:bg-rose-700"
-              >
-                {deleteLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+              <Button variant="destructive" onClick={handleBulkDelete} disabled={deleteLoading}>
+                {deleteLoading ? <Loader2 className="animate-spin" /> : <Trash2 />}
                 Hapus {confirmedIds.length} Transaksi
               </Button>
             </div>
           </div>
-        </ResponsiveModal>
-      )}
+        )}
+      </ResponsiveModal>
     </div>
   );
 };
