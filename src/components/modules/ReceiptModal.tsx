@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { SalesTransaction } from '@/types';
-import { formatRupiah, formatDate } from '@/constants';
+import { formatRupiah, formatDate, isForwardTransaction } from '@/constants';
 import { CheckCircle2, Download } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -61,8 +61,18 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ transaction, onClose
     currentY += 4;
     doc.text(`Tanggal  : ${formatDate(transaction.createdAt)}`, 5, currentY);
     currentY += 4;
-    doc.text(`Channel  : ${transaction.channel} (${transaction.platform || 'OFFLINE'})`, 5, currentY);
+    doc.text(
+      transaction.channel === 'ONLINE'
+        ? `Channel  : ${transaction.channel} (${transaction.platform || '-'})`
+        : `Channel  : ${transaction.channel}`,
+      5,
+      currentY
+    );
     currentY += 4;
+    if (isForwardTransaction(transaction)) {
+      doc.text(`Sumber   : ${transaction.forwardSource === 'HQ' ? 'Barang dari HQ (stok cabang tidak berubah)' : 'Barang dari Stok Cabang'}`, 5, currentY);
+      currentY += 4;
+    }
     if (transaction.isReseller) {
       doc.text(`Reseller : YA`, 5, currentY);
       currentY += 4;
@@ -149,11 +159,30 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ transaction, onClose
                   Reseller
                 </span>
               )}
-              <span className="rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-sans font-semibold text-emerald-800">
+              {isForwardTransaction(transaction) && (
+                <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-sans font-semibold text-violet-800">
+                  {transaction.forwardSource === 'HQ' ? 'Dari HQ' : 'Dari Stok Cabang'}
+                </span>
+              )}
+              <span
+                className={`rounded px-2 py-0.5 text-[10px] font-sans font-semibold ${
+                  transaction.channel === 'ONLINE'
+                    ? 'bg-sky-100 text-sky-800'
+                    : 'bg-emerald-100 text-emerald-800'
+                }`}
+              >
                 {transaction.channel}
               </span>
             </span>
           </div>
+
+          {isForwardTransaction(transaction) && (
+            <p className="text-[10px] text-muted-foreground">
+              {transaction.forwardSource === 'HQ'
+                ? 'Barang disuplai HQ — stok cabang tidak berkurang, dan omzet serta modal transaksi ini dikurangi dari sisi cabang pada laporan perhitungan.'
+                : 'Barang diambil dari stok cabang — stok cabang berkurang dan omzet masuk penuh ke cabang.'}
+            </p>
+          )}
 
           <div className="space-y-1 text-[11px] text-foreground/80">
             <div className="flex justify-between">

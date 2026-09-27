@@ -8,6 +8,7 @@ import {
   DollarSign,
   LayoutDashboard,
   Loader2,
+  ArrowLeftRight,
   Music2,
   Percent,
   PieChart,
@@ -168,7 +169,7 @@ export const HQAnalyticsModule: React.FC<HQAnalyticsModuleProps> = ({ analytics,
       </div>
 
       {/* Channel Breakdown Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardContent className="flex items-center justify-between gap-4">
             <div className="space-y-1 min-w-0">
@@ -207,6 +208,21 @@ export const HQAnalyticsModule: React.FC<HQAnalyticsModuleProps> = ({ analytics,
             <Music2 className="size-8 md:size-10 text-cyan-600/20 shrink-0" />
           </CardContent>
         </Card>
+
+        <Card>
+          <CardContent className="flex items-center justify-between gap-4">
+            <div className="space-y-1 min-w-0">
+              <p className="text-xs font-medium text-muted-foreground">Resi Forward (bersih)</p>
+              <div className="text-xl md:text-2xl font-bold tracking-tight tabular-nums text-violet-600">
+                {formatRupiah(analytics.forwardRevenue)}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Dari stok cabang, dikurangi {formatRupiah(analytics.forwardFromHqRevenue)} yang disuplai HQ
+              </p>
+            </div>
+            <ArrowLeftRight className="size-8 md:size-10 text-violet-600/20 shrink-0" />
+          </CardContent>
+        </Card>
       </div>
 
       {/* Branch Performance Comparison (HQ Only) */}
@@ -223,6 +239,7 @@ export const HQAnalyticsModule: React.FC<HQAnalyticsModuleProps> = ({ analytics,
                   <TableHead>Nama Cabang</TableHead>
                   <TableHead>Total Omzet</TableHead>
                   <TableHead>Offline</TableHead>
+                  <TableHead title="Omzet Resi Forward dari stok cabang, dikurangi yang disuplai HQ">Forward (bersih)</TableHead>
                   <TableHead>Shopee</TableHead>
                   <TableHead>TikTok</TableHead>
                   <TableHead>Modal (COGS)</TableHead>
@@ -240,6 +257,14 @@ export const HQAnalyticsModule: React.FC<HQAnalyticsModuleProps> = ({ analytics,
                       <TableCell className="font-medium">{b.branchName}</TableCell>
                       <TableCell className="font-semibold tabular-nums">{formatRupiah(b.revenue)}</TableCell>
                       <TableCell className="text-emerald-600 tabular-nums">{formatRupiah(b.offlineRevenue)}</TableCell>
+                      <TableCell className="text-violet-600 tabular-nums">
+                        {formatRupiah(b.forwardRevenue)}
+                        {b.forwardFromHqRevenue > 0 && (
+                          <div className="text-[10px] font-normal text-muted-foreground">
+                            − {formatRupiah(b.forwardFromHqRevenue)} dari HQ
+                          </div>
+                        )}
+                      </TableCell>
                       <TableCell className="text-orange-600 tabular-nums">{formatRupiah(b.shopeeRevenue)}</TableCell>
                       <TableCell className="text-cyan-600 tabular-nums">{formatRupiah(b.tiktokRevenue)}</TableCell>
                       <TableCell className="text-foreground/70 tabular-nums">{formatRupiah(b.cost)}</TableCell>
@@ -285,6 +310,19 @@ export const HQAnalyticsModule: React.FC<HQAnalyticsModuleProps> = ({ analytics,
                       <div className="flex items-center justify-between py-1.5">
                         <span className="text-muted-foreground">Offline</span>
                         <span className="font-medium tabular-nums text-emerald-600">{formatRupiah(b.offlineRevenue)}</span>
+                      </div>
+                      <div className="flex items-center justify-between py-1.5">
+                        <span className="text-muted-foreground">Forward (bersih)</span>
+                        <span className="text-right">
+                          <span className="block font-medium tabular-nums text-violet-600">
+                            {formatRupiah(b.forwardRevenue)}
+                          </span>
+                          {b.forwardFromHqRevenue > 0 && (
+                            <span className="block text-[10px] tabular-nums text-muted-foreground">
+                              − {formatRupiah(b.forwardFromHqRevenue)} dari HQ
+                            </span>
+                          )}
+                        </span>
                       </div>
                       <div className="flex items-center justify-between py-1.5">
                         <span className="text-muted-foreground">Shopee</span>
@@ -342,6 +380,7 @@ export const HQAnalyticsModule: React.FC<HQAnalyticsModuleProps> = ({ analytics,
                 <TableHead>SKU</TableHead>
                 <TableHead>Produk &amp; Varian</TableHead>
                 <TableHead className="text-right">Terjual (Qty)</TableHead>
+                <TableHead className="text-right">Forward (Qty)</TableHead>
                 <TableHead className="text-right">Sisa Stok Tersedia</TableHead>
               </TableRow>
             </TableHeader>
@@ -357,6 +396,10 @@ export const HQAnalyticsModule: React.FC<HQAnalyticsModuleProps> = ({ analytics,
                     </TableCell>
                     <TableCell className="text-right">
                       <span className="font-semibold tabular-nums">{p.qtySold}</span>
+                      <span className="ml-1 text-xs text-muted-foreground">unit</span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span className="font-semibold tabular-nums text-violet-600">{p.forwardQty}</span>
                       <span className="ml-1 text-xs text-muted-foreground">unit</span>
                     </TableCell>
                     <TableCell className="text-right">
@@ -385,11 +428,17 @@ export const HQAnalyticsModule: React.FC<HQAnalyticsModuleProps> = ({ analytics,
                     <div className="text-xs text-muted-foreground mt-0.5">{p.variant}</div>
                     <div className="text-xs text-muted-foreground font-mono mt-1">SKU: {p.sku}</div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4 border-t border-border/70 pt-3">
+                  <div className="grid grid-cols-3 gap-4 border-t border-border/70 pt-3">
                     <div className="space-y-1">
                       <p className="text-xs text-muted-foreground">Terjual</p>
                       <div className="font-semibold tabular-nums">
                         {p.qtySold} <span className="text-xs font-normal text-muted-foreground">unit</span>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Forward (bersih)</p>
+                      <div className="font-semibold tabular-nums text-violet-600">
+                        {p.forwardQty} <span className="text-xs font-normal text-muted-foreground">unit</span>
                       </div>
                     </div>
                     <div className="space-y-1 text-right">

@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
-import { BranchInventory, SalesTransaction, SalesChannel, OnlinePlatform, User } from '@/types';
-import { formatRupiah } from '@/constants';
-import { ShoppingBag, ShoppingCart, Plus, Minus, Trash2, Store, Smartphone, X, Settings2 } from 'lucide-react';
+import React, { useState, useRef, useMemo } from 'react';
+import { BranchInventory, MasterProduct, SalesTransaction, SalesChannel, OnlinePlatform, ForwardSource, User } from '@/types';
+import { formatRupiah, FORWARD_SOURCE_LABELS } from '@/constants';
+import { ShoppingBag, ShoppingCart, Plus, Minus, Trash2, Store, Smartphone, X, Settings2, ArrowLeftRight, Warehouse, PackageCheck } from 'lucide-react';
 import { ReceiptModal } from './ReceiptModal';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -26,18 +26,35 @@ import { Pencil, Check } from 'lucide-react';
 
 interface BranchPOSModuleProps {
   inventories: BranchInventory[];
+  products: MasterProduct[];
   currentUser: User;
   onRefresh: () => void;
 }
 
+/** A sellable row in the POS catalog. `qtyAvailable` is 0 for products the branch has
+ *  never received, which is fine when HQ supplies the goods. */
+interface CatalogEntry {
+  key: string;
+  product: MasterProduct;
+  qtyAvailable: number;
+  resellerSellingPrice: number | null;
+}
+
+const UNLIMITED = Number.MAX_SAFE_INTEGER;
+
 export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
   inventories,
+  products,
   currentUser,
   onRefresh,
 }) => {
   const [isChannelSelected, setIsChannelSelected] = useState(false);
   const [channel, setChannel] = useState<SalesChannel>('OFFLINE');
   const [platform, setPlatform] = useState<OnlinePlatform>('SHOPEE');
+  // Resi Forward is a marker on an online sale, so it is chosen inside the Online branch and
+  // is simply absent (null) for an ordinary marketplace sale.
+  const [isForward, setIsForward] = useState(false);
+  const [forwardSource, setForwardSource] = useState<ForwardSource | null>('HQ');
   
   const [cart, setCart] = useState<{ masterProductId: string; qty: number; customPrice?: number }[]>([]);
   const [completedTx, setCompletedTx] = useState<SalesTransaction | null>(null);
@@ -57,7 +74,41 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
   const [editingPriceValue, setEditingPriceValue] = useState<string>('');
 
-  const availableInventories = inventories.filter((inv) => inv.qtyAvailable > 0);
+  // HQ-supplied forward sales never touch branch stock, so for that direction the cart is
+  // neither capped by nor limited to the local qtyAvailable.
+  const stockIsConsumed = !isForward || forwardSource === 'CABANG';
+
+  const catalog: CatalogEntry[] = useMemo(() => {
+    if (stockIsConsumed) {
+      return inventories
+        .filter((inv) => inv.qtyAvailable > 0)
+        .map((inv) => ({
+          key: inv.id,
+          product: inv.masterProduct,
+          qtyAvailable: inv.qtyAvailable,
+          resellerSellingPrice: inv.resellerSellingPrice ?? null,
+        }));
+    }
+    // HQ supplies the goods: the whole master catalog is sellable, even for products the
+    // branch holds none of.
+    return products.map((product) => {
+      const inv = inventories.find((i) => i.masterProductId === product.id);
+      return {
+        key: product.id,
+        product,
+        qtyAvailable: inv?.qtyAvailable ?? 0,
+        resellerSellingPrice: inv?.resellerSellingPrice ?? null,
+      };
+    });
+  }, [inventories, products, stockIsConsumed]);
+
+  const availableInventories = catalog;
+
+  const findCatalogEntry = (masterProductId: string) =>
+    catalog.find((c) => c.product.id === masterProductId);
+
+  const maxSelectable = (entry: CatalogEntry | undefined) =>
+    stockIsConsumed ? entry?.qtyAvailable ?? 0 : UNLIMITED;
 
   const handleConfirmChannel = () => {
     setIsChannelSelected(true);
@@ -70,6 +121,15 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
     setPaymentMethod(channel === 'ONLINE' ? 'ECOMMERCE' : 'CASH');
   };
 
+  // Switching to Offline leaves the forward marker behind: it only exists on an online sale.
+  const handleChannelChange = (next: SalesChannel) => {
+    setChannel(next);
+    if (next !== 'ONLINE') {
+      setIsForward(false);
+      setForwardSource(null);
+    }
+  };
+
   const saveCustomPrice = (masterProductId: string) => {
     const val = Number(editingPriceValue);
     setCart(cart.map(c => c.masterProductId === masterProductId ? { ...c, customPrice: isNaN(val) ? undefined : val } : c));
@@ -78,8 +138,7 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
 
   const addToCart = (masterProductId: string) => {
     const existing = cart.find((c) => c.masterProductId === masterProductId);
-    const inv = inventories.find((i) => i.masterProductId === masterProductId);
-    const maxQty = inv?.qtyAvailable || 0;
+    const maxQty = maxSelectable(findCatalogEntry(masterProductId));
 
     if (existing) {
       if (existing.qty >= maxQty) return;
@@ -91,8 +150,7 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
   };
 
   const updateCartQty = (masterProductId: string, delta: number) => {
-    const inv = inventories.find((i) => i.masterProductId === masterProductId);
-    const maxQty = inv?.qtyAvailable || 0;
+    const maxQty = maxSelectable(findCatalogEntry(masterProductId));
 
     setCart(
       cart
@@ -112,21 +170,21 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
     setCart(cart.filter((c) => c.masterProductId !== masterProductId));
   };
 
-  const resolveActivePrice = (inv: BranchInventory) => {
+  const resolveActivePrice = (entry: CatalogEntry) => {
     if (channel === 'ONLINE') {
-      return platform === 'SHOPEE' ? inv.masterProduct.shopeeSellingPrice : inv.masterProduct.tiktokSellingPrice;
+      return platform === 'SHOPEE' ? entry.product.shopeeSellingPrice : entry.product.tiktokSellingPrice;
     }
     if (isReseller) {
-      return inv.resellerSellingPrice ?? inv.masterProduct.offlineSellingPrice;
+      return entry.resellerSellingPrice ?? entry.product.offlineSellingPrice;
     }
-    return inv.masterProduct.offlineSellingPrice;
+    return entry.product.offlineSellingPrice;
   };
 
   const calculateSubtotal = () => {
     return cart.reduce((sum, item) => {
-      const inv = inventories.find((i) => i.masterProductId === item.masterProductId);
-      if (!inv) return sum;
-      const price = item.customPrice ?? resolveActivePrice(inv);
+      const entry = findCatalogEntry(item.masterProductId);
+      if (!entry) return sum;
+      const price = item.customPrice ?? resolveActivePrice(entry);
       return sum + price * item.qty;
     }, 0);
   };
@@ -168,6 +226,11 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
       return;
     }
 
+    if (isForward && !forwardSource) {
+      setErrorMsg('Wajib memilih sumber barang untuk transaksi Forward');
+      return;
+    }
+
     let parsedDiscount = 0;
     if (isReseller && discountPercent !== '') {
       parsedDiscount = Number(discountPercent);
@@ -189,6 +252,7 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
           branchId: currentUser.branchId,
           channel,
           platform: channel === 'ONLINE' ? platform : 'NONE',
+          forwardSource: isForward ? forwardSource : null,
           items: cart,
           userId: currentUser.id,
           userName: currentUser.name,
@@ -247,10 +311,11 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
       ) : (
         <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1 divide-y divide-border">
           {cart.map((item) => {
-            const inv = inventories.find((i) => i.masterProductId === item.masterProductId);
-            if (!inv) return null;
-            const prod = inv.masterProduct;
-            const price = item.customPrice ?? resolveActivePrice(inv);
+            const entry = findCatalogEntry(item.masterProductId);
+            if (!entry) return null;
+            const prod = entry.product;
+            const price = item.customPrice ?? resolveActivePrice(entry);
+            const qtyCeiling = maxSelectable(entry);
 
             return (
               <div key={item.masterProductId} className="pt-2.5 flex items-center justify-between">
@@ -286,7 +351,7 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
                   <span className="text-xs font-mono font-bold text-foreground w-5 text-center">
                     {item.qty}
                   </span>
-                  <Button variant="outline" size="icon" onClick={() => updateCartQty(item.masterProductId, 1)} disabled={item.qty >= inv.qtyAvailable} className="h-6 w-6 border-border">
+                  <Button variant="outline" size="icon" onClick={() => updateCartQty(item.masterProductId, 1)} disabled={item.qty >= qtyCeiling} className="h-6 w-6 border-border">
                     <Plus className="w-3 h-3" />
                   </Button>
                   <Button variant="ghost" size="icon" onClick={() => removeFromCart(item.masterProductId)} className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10 ml-1">
@@ -392,8 +457,20 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
           <span className="text-muted-foreground">Channel Transaksi</span>
           <span className="font-semibold">
             {channel} {channel === 'ONLINE' ? `(${platform})` : ''}
+            {isForward && forwardSource ? `(${FORWARD_SOURCE_LABELS[forwardSource]})` : ''}
           </span>
         </div>
+
+        {isForward && (
+          <Alert className="border-violet-200 bg-violet-50 text-violet-800 py-2.5 px-3">
+            <ArrowLeftRight className="size-4" />
+            <AlertDescription className="text-[11px] font-medium text-violet-800">
+              {stockIsConsumed
+                ? 'Barang diambil dari stok cabang — stok cabang akan berkurang sejumlah yang dijual.'
+                : 'Barang disuplai HQ — stok cabang TIDAK akan berkurang, dan omzet serta modal transaksi ini dikurangi dari sisi cabang pada laporan perhitungan.'}
+            </AlertDescription>
+          </Alert>
+        )}
 
         <div className="space-y-1.5">
           {isReseller && channel === 'OFFLINE' && calculateDiscount() > 0 && (
@@ -439,7 +516,10 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
     <div className="space-y-6 pb-20 lg:pb-0">
       {/* Forced Channel Selection Modal */}
       <Dialog open={!isChannelSelected}>
-        <DialogContent className="max-w-md bg-card border-border">
+        {/* `max-h` + `overflow-y` is required: the popup is vertically centred with a transform,
+            so without a scroll cap a tall channel (Forward adds a sub-selector) gets clipped at
+            both ends and the confirm button ends up off-screen on short viewports. */}
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto bg-card border-border">
           <DialogHeader>
             <DialogTitle className="text-center text-xl font-bold text-foreground">Mulai Transaksi Kasir</DialogTitle>
             <DialogDescription className="text-center text-muted-foreground text-xs">
@@ -451,19 +531,19 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
             <div className="grid grid-cols-2 gap-3">
               <Button
                 variant={channel === 'OFFLINE' ? 'default' : 'outline'}
-                onClick={() => setChannel('OFFLINE')}
+                onClick={() => handleChannelChange('OFFLINE')}
                 className="flex h-24 flex-col items-center justify-center gap-2"
               >
                 <Store className="size-6" />
-                <span className="font-semibold">Offline (Toko)</span>
+                <span className="font-semibold text-xs">Offline (Toko)</span>
               </Button>
               <Button
                 variant={channel === 'ONLINE' ? 'default' : 'outline'}
-                onClick={() => setChannel('ONLINE')}
+                onClick={() => handleChannelChange('ONLINE')}
                 className="flex h-24 flex-col items-center justify-center gap-2"
               >
                 <Smartphone className="size-6" />
-                <span className="font-semibold">Online</span>
+                <span className="font-semibold text-xs">Online</span>
               </Button>
             </div>
 
@@ -488,6 +568,66 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
                     TikTok Shop
                   </Button>
                 </div>
+
+                <div className="space-y-2 border-t border-border pt-3">
+                  <Button
+                    variant={isForward ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => {
+                      setIsForward((prev) => !prev);
+                      // Turning forward back on always restores a direction, so the confirm
+                      // button can never be reached with the source left unset.
+                      if (!isForward) setForwardSource((prev) => prev ?? 'HQ');
+                    }}
+                    className={`w-full ${
+                      isForward ? 'bg-violet-600 text-white hover:bg-violet-700' : 'text-muted-foreground'
+                    }`}
+                  >
+                    <ArrowLeftRight className="size-4" />
+                    Resi Forward
+                  </Button>
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    Buyer di luar wilayah cabang, dikirim dari HQ lalu dicatat pada cabang ini.
+                  </p>
+                </div>
+
+                {isForward && (
+                  <div className="space-y-3 rounded-lg border border-violet-200 bg-violet-50/50 p-4">
+                    <Label className="text-sm font-medium">Dari mana barangnya?</Label>
+                    <Button
+                      variant={forwardSource === 'HQ' ? 'default' : 'outline'}
+                      onClick={() => setForwardSource('HQ')}
+                      className={`w-full h-auto items-start justify-start gap-3 whitespace-normal py-3 text-left ${
+                        forwardSource === 'HQ' ? 'bg-violet-600 text-white hover:bg-violet-700' : ''
+                      }`}
+                    >
+                      <Warehouse className="size-5 shrink-0" />
+                      <span className="flex flex-col gap-0.5">
+                        <span className="block text-sm font-semibold">Barang dari HQ</span>
+                        <span className="block text-[11px] font-normal opacity-80">
+                          Buyer di luar wilayah cabang, dikirim dari HQ. Stok cabang tidak
+                          berkurang, dan omzet serta modal dikurangi dari sisi cabang.
+                        </span>
+                      </span>
+                    </Button>
+                    <Button
+                      variant={forwardSource === 'CABANG' ? 'default' : 'outline'}
+                      onClick={() => setForwardSource('CABANG')}
+                      className={`w-full h-auto items-start justify-start gap-3 whitespace-normal py-3 text-left ${
+                        forwardSource === 'CABANG' ? 'bg-violet-600 text-white hover:bg-violet-700' : ''
+                      }`}
+                    >
+                      <PackageCheck className="size-5 shrink-0" />
+                      <span className="flex flex-col gap-0.5">
+                        <span className="block text-sm font-semibold">Barang dari Stok Cabang</span>
+                        <span className="block text-[11px] font-normal opacity-80">
+                          HQ meneruskan order ke cabang. Stok cabang berkurang dan omzet masuk
+                          penuh ke cabang.
+                        </span>
+                      </span>
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -507,6 +647,7 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
             Sesi penjualan aktif untuk:{' '}
             <strong className="text-foreground">
               {channel} {channel === 'ONLINE' ? `(${platform})` : ''}
+              {isForward && forwardSource ? `(${FORWARD_SOURCE_LABELS[forwardSource]})` : ''}
             </strong>
           </>
         }
@@ -523,7 +664,9 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
       {isChannelSelected && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-4">
-            <h3 className="text-base font-semibold">Katalog Live Product Cabang Madiun</h3>
+            <h3 className="text-base font-semibold">
+              Katalog {isForward && !stockIsConsumed ? 'Produk (disuplai HQ)' : 'Live Product Cabang'}
+            </h3>
 
             {availableInventories.length === 0 ? (
               <Card className="border-dashed">
@@ -533,14 +676,14 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
               </Card>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {availableInventories.map((inv) => {
-                  const prod = inv.masterProduct;
-                  const activePrice = resolveActivePrice(inv);
+                {availableInventories.map((entry) => {
+                  const prod = entry.product;
+                  const activePrice = resolveActivePrice(entry);
                   const inCart = cart.find((c) => c.masterProductId === prod.id);
-                  const isResellerPriced = isReseller && channel === 'OFFLINE' && inv.resellerSellingPrice != null;
+                  const isResellerPriced = isReseller && channel === 'OFFLINE' && entry.resellerSellingPrice != null;
 
                   return (
-                    <Card key={inv.id} className="hover:border-primary/40 transition-colors">
+                    <Card key={entry.key} className="hover:border-primary/40 transition-colors">
                       <CardContent className="flex flex-col justify-between p-4 h-full">
                         <div className="space-y-1">
                           <div className="flex items-start justify-between">
@@ -550,7 +693,7 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
                                 <Badge className="border-transparent bg-amber-100 text-amber-700">Reseller</Badge>
                               )}
                               <Badge variant="outline" className="font-mono tabular-nums">
-                                Stok: {inv.qtyAvailable}
+                                {stockIsConsumed ? `Stok: ${entry.qtyAvailable}` : 'Stok: —'}
                               </Badge>
                             </div>
                           </div>
@@ -561,12 +704,16 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
                         <div className="mt-3 flex items-center justify-between border-t border-border/70 pt-3">
                           <div>
                             <span className="block text-xs text-muted-foreground">
-                              {isResellerPriced ? 'Harga Reseller' : `Harga ${channel}`}
+                              {isResellerPriced
+                                ? 'Harga Reseller'
+                                : channel === 'ONLINE'
+                                  ? `Harga ${platform === 'TIKTOK' ? 'TikTok Shop' : 'Shopee'}`
+                                  : 'Harga Offline'}
                             </span>
                             <span className="font-semibold tabular-nums">{formatRupiah(activePrice)}</span>
-                            {isResellerPriced && inv.masterProduct.offlineSellingPrice !== activePrice && (
+                            {isResellerPriced && prod.offlineSellingPrice !== activePrice && (
                               <span className="block text-xs text-muted-foreground mt-0.5">
-                                Offline: {formatRupiah(inv.masterProduct.offlineSellingPrice)}
+                                Offline: {formatRupiah(prod.offlineSellingPrice)}
                               </span>
                             )}
                           </div>
@@ -574,7 +721,7 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
                           <Button
                             size="sm"
                             onClick={() => addToCart(prod.id)}
-                            disabled={inv.qtyAvailable <= (inCart?.qty || 0)}
+                            disabled={inCart ? inCart.qty >= maxSelectable(entry) : maxSelectable(entry) < 1}
                           >
                             <Plus /> {inCart ? `+ (${inCart.qty})` : 'Tambah'}
                           </Button>

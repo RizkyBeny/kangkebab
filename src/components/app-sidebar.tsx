@@ -10,6 +10,7 @@ import {
   ShoppingBag,
   PackageCheck,
   Store,
+  FileSpreadsheet,
   LogOut,
   ChevronsUpDown,
 } from "lucide-react"
@@ -61,6 +62,7 @@ const hqNav: NavItem[] = [
   { id: "reseller_prices", label: "Harga Reseller", icon: Percent },
   { id: "inventory_global", label: "Stok Opname Cabang", icon: Layers },
   { id: "history", label: "Riwayat Omzet", icon: History },
+  { id: "perhitungan", label: "Laporan Perhitungan", icon: FileSpreadsheet },
 ]
 
 const branchNav: NavItem[] = [
@@ -72,6 +74,7 @@ const branchNavExtra = (pendingReceptionCount: number) => [
   { id: "reception" as TabType, label: "Terima & Validasi Barang", icon: PackageCheck, badge: pendingReceptionCount > 0 ? pendingReceptionCount : undefined },
   { id: "live_products" as TabType, label: "Katalog Live Product", icon: Store },
   { id: "history" as TabType, label: "Riwayat Transaksi", icon: History },
+  { id: "perhitungan" as TabType, label: "Laporan Perhitungan", icon: FileSpreadsheet },
 ]
 
 function SidebarNav({ items, activeTab, onSelectTab }: { items: NavItem[]; activeTab: TabType; onSelectTab: (tab: TabType) => void }) {

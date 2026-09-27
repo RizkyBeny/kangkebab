@@ -2,8 +2,8 @@
 
 import React, { useState } from 'react';
 import { SalesTransaction, Branch, User } from '@/types';
-import { formatRupiah, formatDate } from '@/constants';
-import { AlertTriangle, DollarSign, Download, History, Loader2, Music2, Pencil, ShoppingBag, Smartphone, Store, Trash2 } from 'lucide-react';
+import { formatRupiah, formatDate, isForwardTransaction, forwardSettlementSign } from '@/constants';
+import { AlertTriangle, ArrowLeftRight, DollarSign, Download, History, Loader2, Music2, Pencil, ShoppingBag, Smartphone, Store, Trash2 } from 'lucide-react';
 import { ReceiptModal } from './ReceiptModal';
 import { EditTransactionModal } from './EditTransactionModal';
 import { Button } from '@/components/ui/button';
@@ -53,6 +53,16 @@ const channelBadge = (channel: SalesTransaction['channel'], platform?: string | 
   );
 };
 
+/** Shows which side supplied the goods on a Resi Forward sale. */
+const forwardSourceBadge = (source?: string | null) => {
+  if (!source) return null;
+  return source === 'HQ' ? (
+    <Badge className="border-transparent bg-indigo-100 text-indigo-700">Barang dari HQ</Badge>
+  ) : (
+    <Badge className="border-transparent bg-teal-100 text-teal-700">Barang dari Stok Cabang</Badge>
+  );
+};
+
 const paymentBadge = (status?: string | null) => (
   <Badge
     className={
@@ -73,6 +83,8 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
 }) => {
   const [selectedChannel, setSelectedChannel] = useState<string>('ALL');
   const [selectedPlatform, setSelectedPlatform] = useState<string>('ALL');
+  // Resi Forward is no longer a channel, so it gets its own axis: ALL / any forward / by side.
+  const [selectedForward, setSelectedForward] = useState<string>('ALL');
   const [selectedBranchId, setSelectedBranchId] = useState<string>('ALL');
   const [activeReceipt, setActiveReceipt] = useState<SalesTransaction | null>(null);
   const [editingTransaction, setEditingTransaction] = useState<SalesTransaction | null>(null);
@@ -94,6 +106,14 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
     if (selectedChannel !== 'ALL' && t.channel !== selectedChannel) return false;
     if (selectedChannel === 'ONLINE' && selectedPlatform !== 'ALL' && t.platform !== selectedPlatform)
       return false;
+    if (selectedForward === 'FORWARD' && !isForwardTransaction(t)) return false;
+    if (selectedForward === 'FORWARD_HQ' && !(isForwardTransaction(t) && t.forwardSource === 'HQ'))
+      return false;
+    if (
+      selectedForward === 'FORWARD_CABANG' &&
+      !(isForwardTransaction(t) && t.forwardSource === 'CABANG')
+    )
+      return false;
     if (currentUser.role === 'CABANG_STAFF' && t.branchId !== currentUser.branchId) return false;
     if (currentUser.role === 'HQ_ADMIN' && selectedBranchId !== 'ALL' && t.branchId !== selectedBranchId)
       return false;
@@ -101,16 +121,22 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
   });
 
   const historyTotals = {
-    total: filteredTransactions.reduce((sum, t) => sum + t.totalAmount, 0),
+    total: filteredTransactions.reduce(
+      (sum, t) => sum + forwardSettlementSign(t) * t.totalAmount,
+      0
+    ),
     offline: filteredTransactions
       .filter((t) => t.channel === 'OFFLINE')
-      .reduce((sum, t) => sum + t.totalAmount, 0),
+      .reduce((sum, t) => sum + forwardSettlementSign(t) * t.totalAmount, 0),
+    forward: filteredTransactions
+      .filter((t) => isForwardTransaction(t))
+      .reduce((sum, t) => sum + forwardSettlementSign(t) * t.totalAmount, 0),
     shopee: filteredTransactions
       .filter((t) => t.platform === 'SHOPEE')
-      .reduce((sum, t) => sum + t.totalAmount, 0),
+      .reduce((sum, t) => sum + forwardSettlementSign(t) * t.totalAmount, 0),
     tiktok: filteredTransactions
       .filter((t) => t.platform === 'TIKTOK')
-      .reduce((sum, t) => sum + t.totalAmount, 0),
+      .reduce((sum, t) => sum + forwardSettlementSign(t) * t.totalAmount, 0),
   };
 
   const handleExportCSV = () => {
@@ -120,6 +146,7 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
       'Cabang',
       'Channel',
       'Platform',
+      'Sumber Barang Forward',
       'Reseller',
       'Diskon (%)',
       'Diskon (Rp)',
@@ -140,6 +167,7 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
         `"${t.branch.name}"`,
         t.channel,
         t.platform || '-',
+        isForwardTransaction(t) ? (t.forwardSource === 'HQ' ? 'HQ' : 'CABANG') : '-',
         t.isReseller ? 'YA' : 'TIDAK',
         t.discountPercent > 0 ? t.discountPercent : 0,
         t.discountAmount > 0 ? t.discountAmount : 0,
@@ -313,6 +341,18 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
               </Select>
             )}
 
+            <Select value={selectedForward} onValueChange={(val) => setSelectedForward(val || 'ALL')}>
+              <SelectTrigger className="w-44">
+                <SelectValue placeholder="Semua Resi" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Semua Penjualan</SelectItem>
+                <SelectItem value="FORWARD">Resi Forward</SelectItem>
+                <SelectItem value="FORWARD_HQ">Forward · Barang dari HQ</SelectItem>
+                <SelectItem value="FORWARD_CABANG">Forward · Dari Stok Cabang</SelectItem>
+              </SelectContent>
+            </Select>
+
             <Button variant="outline" onClick={handleExportCSV}>
               <Download />
               Export CSV
@@ -322,7 +362,7 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
       />
 
       {/* Channel Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Omzet</CardTitle>
@@ -372,6 +412,23 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
           <CardContent className="space-y-1">
             <div className="text-2xl font-bold tracking-tight tabular-nums">{formatRupiah(historyTotals.tiktok)}</div>
             <p className="text-xs text-muted-foreground">Penjualan via TikTok Shop</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Resi Forward</CardTitle>
+            <CardAction>
+              <ArrowLeftRight className="size-4 text-muted-foreground" />
+            </CardAction>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            <div className="text-2xl font-bold tracking-tight tabular-nums text-violet-600">
+              {formatRupiah(historyTotals.forward)}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Kontribusi bersih Resi Forward (dari stok cabang dikurangi barang dari HQ)
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -454,11 +511,19 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
                   <TableCell>
                     <div className="flex flex-wrap items-center gap-1.5">
                       {channelBadge(t.channel, t.platform)}
+                      {forwardSourceBadge(t.forwardSource)}
                       {t.isReseller && <Badge className="border-transparent bg-amber-100 text-amber-800">Reseller</Badge>}
                     </div>
                     {t.isReseller && t.discountPercent > 0 && (
                       <div className="mt-1 text-xs text-rose-600 font-medium">
                         -{t.discountPercent}% ({formatRupiah(t.discountAmount)})
+                      </div>
+                    )}
+                    {isForwardTransaction(t) && (
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        {t.forwardSource === 'HQ'
+                          ? 'Stok cabang tidak berubah, omzet & modal dikurangi dari cabang'
+                          : 'Stok cabang berkurang, omzet masuk penuh ke cabang'}
                       </div>
                     )}
                   </TableCell>
@@ -531,6 +596,7 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
 
                 <div className="flex flex-wrap items-center gap-1.5">
                   <Badge variant="secondary">{t.branch.name}</Badge>
+                  {forwardSourceBadge(t.forwardSource)}
                   {t.isReseller && <Badge className="border-transparent bg-amber-100 text-amber-800">Reseller</Badge>}
                   {t.isReseller && t.discountPercent > 0 && (
                     <span className="text-xs text-rose-600 font-medium">

@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { sseBroadcaster } from '@/lib/sseEmitter';
-import { SalesTransaction, SalesChannel, OnlinePlatform } from '@/types';
-import { formatShortDate } from '@/constants';
+import { SalesTransaction, SalesChannel, OnlinePlatform, ForwardSource } from '@/types';
+import { FORWARD_SOURCE_LABELS, formatShortDate } from '@/constants';
 
 function isUniqueConstraintError(error: unknown): boolean {
   return (
@@ -9,6 +9,17 @@ function isUniqueConstraintError(error: unknown): boolean {
     error !== null &&
     (error as { code?: string }).code === 'P2002'
   );
+}
+
+/** A Resi Forward sale is stored as an ordinary ONLINE sale plus a `forwardSource` marker, so
+ *  the only thing that decides whether branch stock moves is which side shipped the goods. */
+function shouldDeductStock(forwardSource?: string | null): boolean {
+  return forwardSource !== 'HQ';
+}
+
+function describeForwardSource(forwardSource?: string | null): string {
+  if (!forwardSource) return '';
+  return FORWARD_SOURCE_LABELS[forwardSource] || forwardSource;
 }
 
 // Atomically reserve the next invoice sequence for a branch on a given date (YYYYMMDD).
@@ -39,6 +50,7 @@ export async function createSalesTransaction(data: {
   branchId: string;
   channel: SalesChannel;
   platform?: OnlinePlatform | null;
+  forwardSource?: ForwardSource | null;
   items: { masterProductId: string; qty: number; customPrice?: number }[];
   userId: string;
   userName: string;
@@ -61,6 +73,18 @@ export async function createSalesTransaction(data: {
   if (data.channel === 'ONLINE' && (data.ecommerceActualPrice === undefined || data.ecommerceActualPrice === null || data.ecommerceActualPrice <= 0)) {
     throw new Error('Harga Actual Ecommerce wajib diisi untuk transaksi Online');
   }
+
+  // Resi Forward is a marker on an ONLINE sale, not a channel of its own. A `forwardSource` is
+  // only meaningful (and only accepted) on ONLINE, and must name the side that shipped.
+  const wantsForward = data.forwardSource === 'HQ' || data.forwardSource === 'CABANG';
+  const isForward = data.channel === 'ONLINE' && wantsForward;
+  let forwardSource: ForwardSource | null = null;
+  if (isForward) {
+    forwardSource = data.forwardSource as ForwardSource;
+  } else if (wantsForward) {
+    throw new Error('Resi Forward hanya berlaku untuk penjualan Online');
+  }
+  const deductStock = shouldDeductStock(forwardSource);
 
   const isReseller = data.channel === 'OFFLINE' && !!data.isReseller;
   let discountPercent = 0;
@@ -86,22 +110,38 @@ export async function createSalesTransaction(data: {
   // Validate inventory & calculate totals outside the main transaction array (using individual reads).
   // This avoids Interactive Transaction limits on Supabase PgBouncer.
   for (const cartItem of data.items) {
-    const inventory = await prisma.branchInventory.findUnique({
-      where: {
-        branchId_masterProductId: {
-          branchId: data.branchId,
-          masterProductId: cartItem.masterProductId,
-        },
-      },
-      include: { masterProduct: true },
-    });
-
-    if (!inventory || inventory.qtyAvailable < cartItem.qty) {
-      const prodName = inventory?.masterProduct.name || 'Produk';
-      throw new Error(`Stok ${prodName} tidak mencukupi (Tersedia: ${inventory?.qtyAvailable || 0}, Diminta: ${cartItem.qty})`);
+    const qty = Math.floor(cartItem.qty);
+    if (!Number.isFinite(qty) || qty < 1) {
+      throw new Error('Jumlah produk pada transaksi harus berupa bilangan bulat positif');
     }
 
-    const prod = inventory.masterProduct;
+    const prod = await prisma.masterProduct.findUnique({
+      where: { id: cartItem.masterProductId },
+    });
+    if (!prod) throw new Error('Produk tidak ditemukan');
+
+    // A Forward sale supplied by HQ never touches branch stock, so there is no
+    // BranchInventory row to read (or validate) for that direction.
+    let inventoryId: string | null = null;
+    let resellerPrice: number | null = null;
+    if (deductStock) {
+      const inventory = await prisma.branchInventory.findUnique({
+        where: {
+          branchId_masterProductId: {
+            branchId: data.branchId,
+            masterProductId: cartItem.masterProductId,
+          },
+        },
+      });
+      if (!inventory || inventory.qtyAvailable < qty) {
+        throw new Error(
+          `Stok ${prod.name} tidak mencukupi (Tersedia: ${inventory?.qtyAvailable || 0}, Diminta: ${qty})`
+        );
+      }
+      inventoryId = inventory.id;
+      resellerPrice = inventory.resellerSellingPrice;
+    }
+
     // Auto-lock price based on channel & platform, or override with custom price if provided
     const autoPrice =
       data.channel === 'ONLINE'
@@ -109,31 +149,36 @@ export async function createSalesTransaction(data: {
           ? prod.shopeeSellingPrice
           : prod.tiktokSellingPrice
         : isReseller
-          ? (inventory.resellerSellingPrice ?? prod.offlineSellingPrice)
+          ? (resellerPrice ?? prod.offlineSellingPrice)
           : prod.offlineSellingPrice;
     const sellingPrice = data.items.find(i => i.masterProductId === cartItem.masterProductId)?.customPrice ?? autoPrice;
-    const itemSubtotal = sellingPrice * cartItem.qty;
-    const itemCostTotal = prod.costPrice * cartItem.qty;
+    const itemSubtotal = sellingPrice * qty;
+    // Modal is recorded at cost even when no stock moved (Forward-from-HQ). The sale is netted
+    // out of the branch at READ time via `forwardSettlementSign`, so storing the real cost here
+    // keeps the signed modal and the signed revenue cancelling out in the settlement.
+    const itemCostTotal = prod.costPrice * qty;
 
     grandTotalAmount += itemSubtotal;
     grandTotalCost += itemCostTotal;
 
     transactionItemsData.push({
       masterProductId: cartItem.masterProductId,
-      qty: cartItem.qty,
+      qty,
       sellingPrice,
       costPrice: prod.costPrice,
     });
 
-    // Atomically decrement stock
-    baseOperations.push(
-      prisma.branchInventory.update({
-        where: { id: inventory.id },
-        data: {
-          qtyAvailable: { decrement: cartItem.qty },
-        },
-      })
-    );
+    // Atomically decrement stock (skipped entirely when HQ supplies the goods)
+    if (inventoryId) {
+      baseOperations.push(
+        prisma.branchInventory.update({
+          where: { id: inventoryId },
+          data: {
+            qtyAvailable: { decrement: qty },
+          },
+        })
+      );
+    }
   }
 
   // For ONLINE transactions, the ecommerce actual price IS the primary amount (overrides computed total)
@@ -165,6 +210,7 @@ export async function createSalesTransaction(data: {
             branchId: data.branchId,
             channel: data.channel,
             platform: data.channel === 'ONLINE' ? data.platform : 'NONE',
+            forwardSource,
             customerName: data.customerName,
             customerPhone: data.customerPhone,
             paymentStatus: data.paymentStatus,
@@ -197,7 +243,7 @@ export async function createSalesTransaction(data: {
             entity: 'SalesTransaction',
             // entityId can't be chained after execution in a Sequential Transaction batch,
             // so we save the transaction number instead.
-            details: `Transaksi ${transactionNumber} (${data.channel}${data.platform ? ' - ' + data.platform : ''}) diselesaikan di ${branch.name}. Total: Rp ${finalTotalAmount}`,
+            details: `Transaksi ${transactionNumber} (${data.channel}${data.platform ? ' - ' + data.platform : ''}${isForward ? ' - ' + describeForwardSource(forwardSource) : ''}) diselesaikan di ${branch.name}. Total: Rp ${finalTotalAmount}${isForward ? (deductStock ? ' (stok cabang berkurang)' : ' (stok cabang tidak berubah)') : ''}`,
           },
         }),
       ];
@@ -420,9 +466,18 @@ export async function deleteSalesTransactions(data: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const operations: any[] = [];
 
-  // Restore sold stock back to qtyAvailable for each item across all transactions
+  // Restore sold stock back to qtyAvailable for each item across all transactions.
+  // Forward sales supplied by HQ never decremented stock, so they must not be credited
+  // back either — otherwise deleting one would inflate the branch's stock.
+  let restoredItems = 0;
+  let skippedItems = 0;
   for (const tx of existingTxs) {
+    if (!shouldDeductStock(tx.forwardSource)) {
+      skippedItems += tx.items.reduce((a, i) => a + i.qty, 0);
+      continue;
+    }
     for (const item of tx.items) {
+      restoredItems += item.qty;
       operations.push(
         prisma.branchInventory.update({
           where: {
@@ -448,10 +503,6 @@ export async function deleteSalesTransactions(data: {
 
   // Audit Log
   const totalDeleted = existingTxs.length;
-  const totalItemsRestored = existingTxs.reduce(
-    (acc, tx) => acc + tx.items.reduce((a, i) => a + i.qty, 0),
-    0
-  );
   const numbers = existingTxs.map((t) => t.transactionNumber).join(', ');
 
   operations.push(
@@ -462,7 +513,11 @@ export async function deleteSalesTransactions(data: {
         action: 'DELETE_SALES_TRANSACTIONS',
         entity: 'SalesTransaction',
         entityId: existingTxs[0].id,
-        details: `${data.userName} menghapus ${totalDeleted} transaksi (${numbers}). Total ${totalItemsRestored} unit stok dikembalikan ke stok jual.`,
+        details:
+          `${data.userName} menghapus ${totalDeleted} transaksi (${numbers}). Total ${restoredItems} unit stok dikembalikan ke stok jual cabang.` +
+          (skippedItems > 0
+            ? ` ${skippedItems} unit dari transaksi Forward (barang dari HQ) tidak mengembalikan stok karena stok cabang tidak pernah berkurang.`
+            : ''),
       },
     })
   );

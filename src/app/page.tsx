@@ -17,6 +17,7 @@ import { HQAnalyticsModule } from '@/components/modules/HQAnalyticsModule';
 import { RevenueHistoryModule } from '@/components/modules/RevenueHistoryModule';
 import { GlobalInventoryModule } from '@/components/modules/GlobalInventoryModule';
 import { ResellerPricingModule } from '@/components/modules/ResellerPricingModule';
+import { PerhitunganModule } from '@/components/modules/PerhitunganModule';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { useSSE } from '@/hooks/useSSE';
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
@@ -117,18 +118,20 @@ export default function Home() {
                   <ResellerPricingModule inventories={inventories} branches={branches} currentUser={currentUser} onRefresh={refreshData} />
                 )}
                 {activeTab === 'history' && <RevenueHistoryModule transactions={transactions} branches={branches} currentUser={currentUser} onRefresh={() => refreshData()} />}
+                {activeTab === 'perhitungan' && <PerhitunganModule currentUser={currentUser} branches={branches} />}
               </>
             )}
 
             {currentUser.role === 'CABANG_STAFF' && (
               <>
                 {activeTab === 'analytics' && <HQAnalyticsModule analytics={analytics} currentUser={currentUser} />}
-                {activeTab === 'pos' && <BranchPOSModule inventories={inventories} currentUser={currentUser} onRefresh={refreshData} />}
+                {activeTab === 'pos' && <BranchPOSModule inventories={inventories} products={products} currentUser={currentUser} onRefresh={refreshData} />}
                 {activeTab === 'reception' && (
                   <BranchReceiveModule shipments={shipments} currentUser={currentUser} onRefresh={refreshData} sseConnected={sseConnected} />
                 )}
                 {activeTab === 'live_products' && <LiveProductsModule inventories={inventories} currentUser={currentUser} onRefresh={() => refreshData()} />}
                 {activeTab === 'history' && <RevenueHistoryModule transactions={transactions} branches={branches} currentUser={currentUser} onRefresh={() => refreshData()} />}
+                {activeTab === 'perhitungan' && <PerhitunganModule currentUser={currentUser} branches={branches} />}
               </>
             )}
           </ErrorBoundary>

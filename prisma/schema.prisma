@@ -98,6 +98,14 @@ model SalesTransaction {
   branch               Branch                 @relation(fields: [branchId], references: [id])
   channel              String                 // "ONLINE" | "OFFLINE"
   platform             String?                // "SHOPEE" | "TIKTOK" | "NONE"
+  // Resi Forward: only set on an ONLINE sale, and a non-null value is what marks that sale as
+  // forward. Records which side actually shipped the goods.
+  //   "HQ"     -> HQ ships the buyer outside the branch area from HQ stock. Branch stock is NOT
+  //                touched, and the sale is netted out of the branch's revenue AND modal.
+  //   "CABANG" -> HQ forwards the order to the branch; branch stock IS decremented and the
+  //                branch keeps the sale in full.
+  //   null     -> an ordinary online sale.
+  forwardSource        String?
   customerName         String                 @default("-")
   customerPhone        String                 @default("-")
   paymentStatus        String                 @default("PAID")
