@@ -158,7 +158,9 @@ export async function getPerhitunganReport(filters: {
 
   console.log('[DEBUG reportService] Found transactions:', transactions.length);
   if (transactions.length > 0) {
-    console.log('[DEBUG reportService] First/last createdAt:', transactions[0].createdAt.toISOString(), '→', transactions[transactions.length - 1].createdAt.toISOString());
+    const first = new Date(transactions[0].createdAt).toISOString();
+    const last = new Date(transactions[transactions.length - 1].createdAt).toISOString();
+    console.log('[DEBUG reportService] First/last createdAt:', first, '→', last);
   }
 
   const shopee = newBucket();
