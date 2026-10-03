@@ -154,6 +154,10 @@ export interface SalesTransaction {
   discountAmount: number;
   totalAmount: number;
   totalCost: number;
+  /** The business date the sale belongs to. Editable; drives period reports, the history list and
+   *  the date segment of the invoice number. Defaults to the sale's `createdAt` for old rows. */
+  transactionDate: Date | string;
+  /** Immutable: when the row was actually written. Survives a business-date correction. */
   createdAt: Date | string;
   items: SalesTransactionItem[];
 }

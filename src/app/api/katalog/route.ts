@@ -25,7 +25,10 @@ export async function GET(request: Request) {
     }
 
     const inventories = await prisma.branchInventory.findMany({
-      where: { branchId: targetBranchId, qtyAvailable: { gt: 0 } },
+      // `isActive: false` is a soft delete (productService.deleteMasterProduct only flips the flag),
+      // so without this filter a discontinued SKU keeps appearing on the public storefront and stays
+      // orderable — it would sail through checkout because the order path never checked the flag.
+      where: { branchId: targetBranchId, qtyAvailable: { gt: 0 }, masterProduct: { isActive: true } },
       include: { masterProduct: true },
       orderBy: { masterProduct: { name: 'asc' } },
     });

@@ -3,6 +3,38 @@ import { sseBroadcaster } from '@/lib/sseEmitter';
 import { Shipment } from '@/types';
 import { formatShortDate } from '@/constants';
 
+function isUniqueConstraintError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { code?: string }).code === 'P2002'
+  );
+}
+
+// Atomically reserve the next shipment sequence for a branch on a given date (YYYYMMDD).
+// Uses its own "SHIP" counter namespace so it never collides with the INV or BLJ sequences, and
+// seeds from the existing MAX suffix so numbering survives deletions. A single
+// INSERT ... ON CONFLICT DO UPDATE claims a distinct number under a row lock, so concurrent
+// dispatches never collide.
+async function getNextShipmentSequence(branchId: string, branchCode: string, date: string): Promise<number> {
+  const rows: { seq: number }[] = await prisma.$queryRaw`
+    WITH existing_max AS (
+      SELECT COALESCE(MAX(NULLIF(SPLIT_PART("shipmentNumber", '-', 4), '')::int), 0) AS mx
+      FROM "Shipment"
+      WHERE "branchId" = ${branchId}
+        AND "shipmentNumber" LIKE ${`SHIP-${branchCode}-${date}-%`}
+        AND SPLIT_PART("shipmentNumber", '-', 4) ~ '^[0-9]+$'
+    )
+    INSERT INTO "TransactionCounter" ("id", "branchId", "date", "kind", "lastNumber")
+    SELECT gen_random_uuid(), ${branchId}, ${date}, 'SHIP', mx + 1
+    FROM existing_max
+    ON CONFLICT ("branchId", "date", "kind")
+    DO UPDATE SET "lastNumber" = "TransactionCounter"."lastNumber" + 1
+    RETURNING "lastNumber" AS "seq"
+  `;
+  return Number(rows[0].seq);
+}
+
 export async function getShipments(branchId?: string): Promise<Shipment[]> {
   const whereCondition = branchId ? { branchId } : {};
 
@@ -31,65 +63,92 @@ export async function createShipment(data: {
   const branch = await prisma.branch.findUnique({ where: { id: data.branchId } });
   if (!branch) throw new Error('Cabang tujuan tidak ditemukan');
 
+  if (!Array.isArray(data.items) || data.items.length === 0) {
+    throw new Error('Pengiriman harus memuat minimal satu barang');
+  }
+  for (const item of data.items) {
+    if (!Number.isInteger(item.qtySent) || item.qtySent <= 0) {
+      throw new Error('Jumlah barang yang dikirim harus bilangan bulat lebih dari 0');
+    }
+    if (!Number.isFinite(item.costPrice) || item.costPrice < 0) {
+      throw new Error('Modal barang harus berupa angka >= 0');
+    }
+  }
+
   const todayStr = formatShortDate(new Date());
-  const countToday = await prisma.shipment.count({
-    where: {
-      sentAt: {
-        gte: new Date(new Date().setHours(0, 0, 0, 0)),
-      },
-    },
-  });
 
-  const shipmentNumber = `SHIP-${branch.code}-${todayStr}-${String(countToday + 1).padStart(3, '0')}`;
+  // Retry on a unique-constraint collision. The sequence is reserved atomically, but two requests
+  // racing on the same counter can still both be handed the same number once the earlier one
+  // commits — and this path previously had no retry, so the loser surfaced a raw "Unique
+  // constraint failed" and the shipment was never recorded at all.
+  const MAX_ATTEMPTS = 3;
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      // Reserved through the same TransactionCounter machinery as the invoice and belanja numbers.
+      // This used to be a plain `count() + 1` read-then-write against a @unique column, and being
+      // global rather than per-branch it also produced gaps as branches took turns.
+      const seq = await getNextShipmentSequence(branch.id, branch.code, todayStr);
+      const shipmentNumber = `SHIP-${branch.code}-${todayStr}-${String(seq).padStart(3, '0')}`;
 
-  const createdShipment = await prisma.shipment.create({
-    data: {
-      shipmentNumber,
-      branchId: data.branchId,
-      status: 'DIKIRIM',
-      sentAt: new Date(),
-      items: {
-        create: data.items.map((item) => ({
-          masterProductId: item.masterProductId,
-          costPrice: item.costPrice,
-          qtySent: item.qtySent,
-          qtyReceived: 0,
-          qtyDamaged: 0,
-        })),
-      },
-    },
-    include: {
-      branch: true,
-      items: {
+      const createdShipment = await prisma.shipment.create({
+        data: {
+          shipmentNumber,
+          branchId: data.branchId,
+          status: 'DIKIRIM',
+          sentAt: new Date(),
+          items: {
+            create: data.items.map((item) => ({
+              masterProductId: item.masterProductId,
+              costPrice: item.costPrice,
+              qtySent: item.qtySent,
+              qtyReceived: 0,
+              qtyDamaged: 0,
+            })),
+          },
+        },
         include: {
-          masterProduct: true,
+        branch: true,
+        items: {
+          include: {
+            masterProduct: true,
+          },
         },
       },
-    },
-  });
+      });
 
-  // Audit Log
-  await prisma.auditLog.create({
-    data: {
-      userId: data.userId,
-      userName: data.userName,
-      action: 'CREATE_SHIPMENT',
-      entity: 'Shipment',
-      entityId: createdShipment.id,
-      details: `Mengirim pengiriman ${shipmentNumber} (${data.items.length} jenis produk) ke ${branch.name}`,
-    },
-  });
+      // Audit Log — inside the transaction that creates the shipment, so a failure here can no
+      // longer report "gagal" for a dispatch that was already recorded.
+      await prisma.$transaction([
+        prisma.auditLog.create({
+          data: {
+            userId: data.userId,
+            userName: data.userName,
+            action: 'CREATE_SHIPMENT',
+            entity: 'Shipment',
+            entityId: createdShipment.id,
+            details: `Mengirim pengiriman ${shipmentNumber} (${data.items.length} jenis produk) ke ${branch.name}`,
+          },
+        }),
+      ]);
 
-  // Realtime Push SSE Broadcast event
-  sseBroadcaster.emit('SHIPMENT_UPDATED', {
-    type: 'SHIPMENT_CREATED',
-    branchId: data.branchId,
-    shipmentId: createdShipment.id,
-    shipmentNumber,
-    timestamp: new Date().toISOString(),
-  });
+      // Realtime Push SSE Broadcast event
+      sseBroadcaster.emit('SHIPMENT_UPDATED', {
+        type: 'SHIPMENT_CREATED',
+        branchId: data.branchId,
+        shipmentId: createdShipment.id,
+        shipmentNumber,
+        timestamp: new Date().toISOString(),
+      });
 
-  return createdShipment as unknown as Shipment;
+      return createdShipment as unknown as Shipment;
+    } catch (error) {
+      lastError = error;
+      if (isUniqueConstraintError(error) && attempt < MAX_ATTEMPTS) continue;
+      throw error;
+    }
+  }
+  throw lastError;
 }
 
 export async function confirmShipmentReception(
@@ -106,30 +165,81 @@ export async function confirmShipmentReception(
   if (!shipment) throw new Error('Pengiriman tidak ditemukan');
   if (shipment.status === 'DITERIMA') throw new Error('Pengiriman ini sudah divalidasi sebelumnya');
 
-  // We use sequential transaction array to avoid Interactive Transaction timeouts with Supabase PgBouncer
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const operations: any[] = [];
+  // A reception must account for EVERY line. Previously unknown ids were skipped with
+  // `continue`, so an empty or partial `itemsConfirmed` still flipped the shipment to DITERIMA
+  // and closed it forever while crediting (part of) nothing — the stock silently vanished with no
+  // way to re-receive it.
+  if (!Array.isArray(itemsConfirmed) || itemsConfirmed.length === 0) {
+    throw new Error('Konfirmasi penerimaan harus memuat minimal satu item');
+  }
+  if (itemsConfirmed.length !== shipment.items.length) {
+    throw new Error(
+      `Konfirmasi penerimaan tidak lengkap: ${itemsConfirmed.length} dari ${shipment.items.length} item terkonfirmasi`
+    );
+  }
 
-  // 1. Update items in shipment
+  const seen = new Set<string>();
   for (const conf of itemsConfirmed) {
     const item = shipment.items.find((i) => i.id === conf.itemId);
-    if (!item) continue;
+    if (!item) throw new Error(`Item barang ${conf.itemId} tidak ada dalam pengiriman ini`);
+    if (seen.has(conf.itemId)) throw new Error(`Item barang ${conf.itemId} terkonfirmasi lebih dari sekali`);
+    seen.add(conf.itemId);
 
-    const qtyGood = Math.max(0, conf.qtyReceived - conf.qtyDamaged);
+    // qtyDamaged was previously unvalidated, which fabricated stock two different ways:
+    // a negative value raised qtyAvailable (nothing was ever shipped), and a value above
+    // qtyReceived materialised damaged units out of thin air and inflated the damage reports.
+    const qtyReceived = Number(conf.qtyReceived);
+    const qtyDamaged = Number(conf.qtyDamaged);
+    if (!Number.isInteger(qtyReceived) || qtyReceived < 0) {
+      throw new Error(`Jumlah diterima untuk ${item.masterProductId} harus bilangan bulat >= 0`);
+    }
+    if (!Number.isInteger(qtyDamaged) || qtyDamaged < 0) {
+      throw new Error(`Jumlah rusak untuk ${item.masterProductId} harus bilangan bulat >= 0`);
+    }
+    if (qtyDamaged > qtyReceived) {
+      throw new Error(
+        `Jumlah rusak tidak boleh lebih besar dari jumlah diterima untuk ${item.masterProductId} (${qtyDamaged} > ${qtyReceived})`
+      );
+    }
+    if (qtyReceived > item.qtySent) {
+      throw new Error(
+        `Jumlah diterima untuk ${item.masterProductId} tidak boleh melebihi jumlah yang dikirim (${qtyReceived} > ${item.qtySent})`
+      );
+    }
+  }
 
-    operations.push(
-      prisma.shipmentItem.update({
+  // Interactive transaction so the status transition can GATE the credit. The old code read
+  // `status` here, outside the transaction, and then wrote `status: 'DITERIMA'` with no predicate
+  // on it — so two simultaneous confirmations both read DIKIRIM and both ran the inventory
+  // upsert, crediting the branch's stock twice.
+  const updatedShipment = await prisma.$transaction(async (tx) => {
+    // Claim the transition first. `status: 'DIKIRIM'` makes this an atomic compare-and-set: the
+    // loser of a race matches 0 rows and rolls back before any stock is credited.
+    const claimed = await tx.shipment.updateMany({
+      where: { id: shipmentId, status: 'DIKIRIM' },
+      data: { status: 'DITERIMA', receivedAt: new Date() },
+    });
+    if (claimed.count !== 1) {
+      throw new Error('Pengiriman ini sudah divalidasi sebelumnya');
+    }
+
+    // Accumulate from the items we actually wrote, so the audit text can never disagree with the
+    // inventory (it used to total `itemsConfirmed`, including rows that had been skipped).
+    let totalDamaged = 0;
+
+    for (const conf of itemsConfirmed) {
+      const item = shipment.items.find((i) => i.id === conf.itemId)!;
+      const qtyReceived = Number(conf.qtyReceived);
+      const qtyDamaged = Number(conf.qtyDamaged);
+      const qtyGood = Math.max(0, qtyReceived - qtyDamaged);
+      totalDamaged += qtyDamaged;
+
+      await tx.shipmentItem.update({
         where: { id: conf.itemId },
-        data: {
-          qtyReceived: conf.qtyReceived,
-          qtyDamaged: conf.qtyDamaged,
-        },
-      })
-    );
+        data: { qtyReceived, qtyDamaged },
+      });
 
-    // Update Branch Inventory
-    operations.push(
-      prisma.branchInventory.upsert({
+      await tx.branchInventory.upsert({
         where: {
           branchId_masterProductId: {
             branchId: shipment.branchId,
@@ -140,39 +250,16 @@ export async function confirmShipmentReception(
           branchId: shipment.branchId,
           masterProductId: item.masterProductId,
           qtyAvailable: qtyGood,
-          qtyDamaged: conf.qtyDamaged,
+          qtyDamaged,
         },
         update: {
           qtyAvailable: { increment: qtyGood },
-          qtyDamaged: { increment: conf.qtyDamaged },
+          qtyDamaged: { increment: qtyDamaged },
         },
-      })
-    );
-  }
+      });
+    }
 
-  // 2. Mark shipment as DITERIMA
-  operations.push(
-    prisma.shipment.update({
-      where: { id: shipmentId },
-      data: {
-        status: 'DITERIMA',
-        receivedAt: new Date(),
-      },
-      include: {
-        branch: true,
-        items: {
-          include: {
-            masterProduct: true,
-          },
-        },
-      },
-    })
-  );
-
-  // 3. Audit log
-  const totalDamaged = itemsConfirmed.reduce((acc, curr) => acc + curr.qtyDamaged, 0);
-  operations.push(
-    prisma.auditLog.create({
+    await tx.auditLog.create({
       data: {
         userId,
         userName,
@@ -181,12 +268,16 @@ export async function confirmShipmentReception(
         entityId: shipmentId,
         details: `Cabang ${shipment.branch.name} memvalidasi penerimaan ${shipment.shipmentNumber}. Total barang rusak/kurang: ${totalDamaged} unit`,
       },
-    })
-  );
+    });
 
-  // Execute all operations in a single sequential transaction
-  const results = await prisma.$transaction(operations);
-  const updatedShipment = results[results.length - 2]; // The shipment.update is the second to last operation
+    return tx.shipment.findUnique({
+      where: { id: shipmentId },
+      include: {
+        branch: true,
+        items: { include: { masterProduct: true } },
+      },
+    });
+  });
 
   // Realtime SSE Broadcast event
   sseBroadcaster.emit('SHIPMENT_UPDATED', {

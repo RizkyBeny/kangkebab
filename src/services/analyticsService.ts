@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { ConsolidatedFinancials, Branch, SalesTransaction, BranchInventory } from '@/types';
-import { isForwardTransaction, forwardSettlementSign } from '@/constants';
+import { isForwardTransaction, forwardSettlementSign, getPeriodBounds } from '@/constants';
 
 /** Modal for one transaction, summed from its item rows.
  *
@@ -62,16 +62,15 @@ export async function getConsolidatedFinancials(filters?: {
     invWhere.branchId = filters.branchId;
   }
 
-  if (filters?.startDate || filters?.endDate) {
-    txWhere.createdAt = {};
-    if (filters.startDate) {
-      txWhere.createdAt.gte = new Date(filters.startDate);
-    }
-    if (filters.endDate) {
-      const end = new Date(filters.endDate);
-      end.setUTCHours(23, 59, 59, 999);
-      txWhere.createdAt.lte = end;
-    }
+  // Period bounds come from `getPeriodBounds`, i.e. LOCAL date parts. This previously used
+  // `new Date(filters.startDate)` (parsed as UTC) with `setUTCHours(23,59,59,999)`, while
+  // reportService built local bounds for the same inputs — so on a WIB host the HQ consolidation
+  // and the per-branch settlement covered different transactions for an identical date range.
+  const { start, end } = getPeriodBounds(filters?.startDate, filters?.endDate);
+  if (start || end) {
+    txWhere.transactionDate = {};
+    if (start) txWhere.transactionDate.gte = start;
+    if (end) txWhere.transactionDate.lte = end;
   }
 
   // Fetch all transactions matching filters

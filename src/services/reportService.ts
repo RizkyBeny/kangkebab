@@ -3,7 +3,7 @@ import { PerhitunganReport, PerhitunganTableRow, SalesTransaction } from '@/type
 import {
   formatPeriodLabel,
   isForwardTransaction,
-  parseLocalDate,
+  getPeriodBounds,
 } from '@/constants';
 
 type TxWithItems = SalesTransaction & {
@@ -132,36 +132,23 @@ export async function getPerhitunganReport(filters: {
   const branch = await prisma.branch.findUnique({ where: { id: filters.branchId } });
   if (!branch) throw new Error('Cabang tidak ditemukan');
 
-  // Period bounds are built from LOCAL date parts. `new Date('2026-09-01')` would be
-  // parsed as 00:00 UTC = 07:00 WIB and silently drop the first 7 hours of the period.
-  const start = parseLocalDate(filters.startDate);
-  const end = parseLocalDate(filters.endDate);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+  // Period bounds are built from LOCAL date parts by the shared `getPeriodBounds` helper, so the
+  // settlement selects exactly the same rows as the HQ consolidation for the same range.
+  // `new Date('2026-09-01')` would be parsed as 00:00 UTC = 07:00 WIB and silently drop the
+  // first 7 hours of the period.
+  const { start, end } = getPeriodBounds(filters.startDate, filters.endDate);
+  if (!start || !end) {
     throw new Error('Rentang tanggal tidak valid');
   }
-  end.setHours(23, 59, 59, 999);
-  if (end.getTime() < start.getTime()) {
-    throw new Error('Tanggal akhir tidak boleh lebih awal dari tanggal mulai');
-  }
-
-  console.log('[DEBUG reportService] Filters:', { branchId: filters.branchId, startDate: filters.startDate, endDate: filters.endDate });
-  console.log('[DEBUG reportService] Parsed bounds:', { start: start.toISOString(), end: end.toISOString(), startLocal: start.toString(), endLocal: end.toString() });
 
   const transactions = (await prisma.salesTransaction.findMany({
-    where: { branchId: filters.branchId, createdAt: { gte: start, lte: end } },
+    where: { branchId: filters.branchId, transactionDate: { gte: start, lte: end } },
     include: {
       branch: true,
       items: { include: { masterProduct: true } },
     },
-    orderBy: { createdAt: 'asc' },
+    orderBy: { transactionDate: 'asc' },
   })) as unknown as TxWithItems[];
-
-  console.log('[DEBUG reportService] Found transactions:', transactions.length);
-  if (transactions.length > 0) {
-    const first = new Date(transactions[0].createdAt).toISOString();
-    const last = new Date(transactions[transactions.length - 1].createdAt).toISOString();
-    console.log('[DEBUG reportService] First/last createdAt:', first, '→', last);
-  }
 
   const shopee = newBucket();
   const tiktok = newBucket();

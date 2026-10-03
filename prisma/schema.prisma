@@ -116,6 +116,12 @@ model SalesTransaction {
   discountAmount       Float                  @default(0)
   totalAmount          Float
   totalCost            Float
+  /// The business date the sale belongs to: what the period reports filter on, what the history
+  /// list shows, and what the invoice number's date segment was drawn from. Editable (a sale can
+  /// be entered late or backdated), and independent of `createdAt`.
+  transactionDate      DateTime               @default(now())
+  /// Immutable audit timestamp: when this row was actually written. Never edited, so "when was
+  /// this sale entered" stays answerable after a date correction.
   createdAt            DateTime               @default(now())
   items                SalesTransactionItem[]
 }

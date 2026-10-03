@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { sseBroadcaster } from '@/lib/sseEmitter';
 import { SalesTransaction, SalesChannel, OnlinePlatform, ForwardSource } from '@/types';
-import { FORWARD_SOURCE_LABELS, formatShortDate } from '@/constants';
+import { FORWARD_SOURCE_LABELS, formatShortDate, getPeriodBounds, resolveTransactionDate, toISODateString } from '@/constants';
 
 function isUniqueConstraintError(error: unknown): boolean {
   return (
@@ -61,6 +61,10 @@ export async function createSalesTransaction(data: {
   ecommerceActualPrice?: number | null;
   isReseller?: boolean;
   discountPercent?: number;
+  /** `YYYY-MM-DD` business date. Defaults to today. Drives both the stored `transactionDate` and
+   *  the date segment of the invoice number, so a backdated sale is numbered for the day it
+   *  belongs to rather than the day it was keyed in. */
+  transactionDate?: string | null;
 }): Promise<SalesTransaction> {
   if (data.items.length === 0) {
     throw new Error('Keranjang belanja tidak boleh kosong');
@@ -98,8 +102,13 @@ export async function createSalesTransaction(data: {
   const branch = await prisma.branch.findUnique({ where: { id: data.branchId } });
   if (!branch) throw new Error('Cabang tidak ditemukan');
 
+  // The business date the sale belongs to. Resolved (and validated) before the invoice number is
+  // drawn, because the number's date segment must come from this date and not the wall clock —
+  // otherwise a backdated sale would be numbered for today and land in the wrong settlement period.
+  const transactionDate = resolveTransactionDate(data.transactionDate);
+
   // Invoice number format: INV/CBG01/20260827/0001
-  const todayStr = formatShortDate(new Date());
+  const dateStr = formatShortDate(transactionDate);
 
   let grandTotalAmount = 0;
   let grandTotalCost = 0;
@@ -119,6 +128,9 @@ export async function createSalesTransaction(data: {
       where: { id: cartItem.masterProductId },
     });
     if (!prod) throw new Error('Produk tidak ditemukan');
+    // A discontinued (soft-deleted) product must not be sellable through the POS either, matching
+    // the storefront filter in /api/katalog.
+    if (!prod.isActive) throw new Error(`Produk ${prod.name} sudah tidak aktif dan tidak bisa dijual`);
 
     // A Forward sale supplied by HQ never touches branch stock, so there is no
     // BranchInventory row to read (or validate) for that direction.
@@ -197,8 +209,8 @@ export async function createSalesTransaction(data: {
   let lastError: unknown;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      const seq = await getNextInvoiceSequence(branch.id, branch.code, todayStr);
-      const transactionNumber = `INV/${branch.code}/${todayStr}/${String(seq).padStart(4, '0')}`;
+      const seq = await getNextInvoiceSequence(branch.id, branch.code, dateStr);
+      const transactionNumber = `INV/${branch.code}/${dateStr}/${String(seq).padStart(4, '0')}`;
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const operations: any[] = [
@@ -221,6 +233,7 @@ export async function createSalesTransaction(data: {
             discountAmount: isReseller ? discountAmount : 0,
             totalAmount: finalTotalAmount,
             totalCost: grandTotalCost,
+            transactionDate,
             items: {
               create: transactionItemsData,
             },
@@ -287,16 +300,16 @@ export async function getSalesTransactions(filters?: {
     whereCondition.channel = filters.channel;
   }
 
-  if (filters?.startDate || filters?.endDate) {
-    whereCondition.createdAt = {};
-    if (filters.startDate) {
-      whereCondition.createdAt.gte = new Date(filters.startDate);
-    }
-    if (filters.endDate) {
-      const end = new Date(filters.endDate);
-      end.setUTCHours(23, 59, 59, 999);
-      whereCondition.createdAt.lte = end;
-    }
+  // Period filters run on the business date, and the bounds come from `getPeriodBounds` so they are
+  // built from LOCAL date parts. This used to use `new Date(filters.startDate)` (parsed as UTC) with
+  // `setUTCHours(23,59,59,999)`, which on a WIB host dropped the first 7 hours of the period and
+  // pulled in the first 7 hours of the day after it — and disagreed with the settlement report,
+  // which had already been building local bounds.
+  const { start, end } = getPeriodBounds(filters?.startDate, filters?.endDate);
+  if (start || end) {
+    whereCondition.transactionDate = {};
+    if (start) whereCondition.transactionDate.gte = start;
+    if (end) whereCondition.transactionDate.lte = end;
   }
 
   const transactions = await prisma.salesTransaction.findMany({
@@ -309,7 +322,9 @@ export async function getSalesTransactions(filters?: {
         },
       },
     },
-    orderBy: { createdAt: 'desc' },
+    // Business date first so a corrected date reorders the history list as the user expects;
+    // `createdAt` breaks ties between sales sharing a date.
+    orderBy: [{ transactionDate: 'desc' }, { createdAt: 'desc' }],
   });
 
   return transactions as unknown as SalesTransaction[];
@@ -323,6 +338,10 @@ export async function updateSalesTransaction(
     paymentStatus?: string;
     items?: { id: string; qty: number; sellingPrice: number }[];
     discountPercent?: number | null;
+    /** `YYYY-MM-DD` business date. Omitted means "leave it alone". */
+    transactionDate?: string | null;
+    userId?: string;
+    userName?: string;
   }
 ): Promise<SalesTransaction> {
   const existingTx = await prisma.salesTransaction.findUnique({
@@ -331,6 +350,11 @@ export async function updateSalesTransaction(
   });
 
   if (!existingTx) throw new Error('Transaksi tidak ditemukan');
+
+  // Resolved up front so an invalid or future date is rejected before anything is written.
+  // `undefined` means the caller did not touch the date, which is different from clearing it.
+  const nextTransactionDate =
+    data.transactionDate === undefined ? null : resolveTransactionDate(data.transactionDate);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const operations: any[] = [];
@@ -346,14 +370,25 @@ export async function updateSalesTransaction(
     for (const item of data.items) {
       const existingItem = existingTx.items.find(i => i.id === item.id);
       if (existingItem) {
-        calcTotalAmount += item.qty * item.sellingPrice;
+        // These reached the database unchecked before, so a NaN or negative qty/price could be
+        // persisted straight onto the ledger.
+        const qty = Math.floor(Number(item.qty));
+        const sellingPrice = Number(item.sellingPrice);
+        if (!Number.isFinite(qty) || qty < 0) {
+          throw new Error(`Jumlah untuk ${existingItem.masterProductId} harus bilangan bulat >= 0`);
+        }
+        if (!Number.isFinite(sellingPrice) || sellingPrice < 0) {
+          throw new Error(`Harga jual untuk ${existingItem.masterProductId} harus angka >= 0`);
+        }
+
+        calcTotalAmount += qty * sellingPrice;
         
         operations.push(
           prisma.salesTransactionItem.update({
             where: { id: item.id },
             data: {
-              qty: item.qty,
-              sellingPrice: item.sellingPrice,
+              qty,
+              sellingPrice,
             }
           })
         );
@@ -401,6 +436,9 @@ export async function updateSalesTransaction(
   if (data.paymentStatus !== undefined) {
     updateData.paymentStatus = data.paymentStatus;
   }
+  if (nextTransactionDate) {
+    updateData.transactionDate = nextTransactionDate;
+  }
 
   operations.push(
     prisma.salesTransaction.update({
@@ -416,6 +454,28 @@ export async function updateSalesTransaction(
       },
     })
   );
+
+  // This function wrote no audit trail at all before, so a corrected date or a re-priced receipt
+  // left no record that the ledger had been edited. The date change is called out explicitly
+  // (old -> new) because it silently moves the sale to a different settlement period.
+  const dateChanged =
+    nextTransactionDate !== null &&
+    toISODateString(nextTransactionDate) !== toISODateString(existingTx.transactionDate);
+
+  if (dateChanged) {
+    operations.push(
+      prisma.auditLog.create({
+        data: {
+          userId: data.userId || 'UNKNOWN',
+          userName: data.userName || 'Tidak diketahui',
+          action: 'UPDATE_SALES_TRANSACTION_DATE',
+          entity: 'SalesTransaction',
+          entityId: id,
+          details: `${data.userName || 'Seseorang'} mengubah tanggal transaksi ${existingTx.transactionNumber} dari ${toISODateString(existingTx.transactionDate)} menjadi ${toISODateString(nextTransactionDate)}. Nomor struk tidak berubah.`,
+        },
+      })
+    );
+  }
 
   const results = await prisma.$transaction(operations);
   const updatedTx = results[results.length - 1];

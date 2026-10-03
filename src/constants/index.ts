@@ -113,6 +113,69 @@ export function parseLocalDate(value: string): Date {
   return new Date(y, m - 1, d, 0, 0, 0, 0);
 }
 
+/** Formats a Date as `YYYY-MM-DD` from its LOCAL date parts — the inverse of `parseLocalDate`,
+ *  and the value shape `<input type="date">` speaks. Using `toISOString()` here instead would
+ *  return the UTC day, which is the previous date for any sale made before 07:00 WIB. */
+export function toISODateString(dateInput: Date | string): string {
+  const d = new Date(dateInput);
+  if (Number.isNaN(d.getTime())) return '';
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+/** Inclusive period bounds for a `YYYY-MM-DD` range, both from LOCAL date parts.
+ *
+ *  Every period filter in the app goes through here so the same range always selects the same
+ *  transactions. This previously differed per service: the settlement report built local bounds
+ *  while analytics and the transaction list built UTC ones, so on a WIB host "1-30 September"
+ *  meant two different sets of rows depending on which screen you asked. */
+export function getPeriodBounds(
+  startDate?: string | null,
+  endDate?: string | null
+): { start?: Date; end?: Date } {
+  const bounds: { start?: Date; end?: Date } = {};
+  if (startDate) {
+    const start = parseLocalDate(startDate);
+    if (Number.isNaN(start.getTime())) throw new Error('Tanggal mulai tidak valid');
+    bounds.start = start;
+  }
+  if (endDate) {
+    const end = parseLocalDate(endDate);
+    if (Number.isNaN(end.getTime())) throw new Error('Tanggal akhir tidak valid');
+    end.setHours(23, 59, 59, 999);
+    bounds.end = end;
+  }
+  if (bounds.start && bounds.end && bounds.end.getTime() < bounds.start.getTime()) {
+    throw new Error('Tanggal akhir tidak boleh lebih awal dari tanggal mulai');
+  }
+  return bounds;
+}
+
+/** Resolves the business date for a transaction being created or edited.
+ *
+ *  Accepts a `YYYY-MM-DD` string (what the date input sends) or nothing, in which case the sale
+ *  belongs to today. Parsed as local midnight so a late-evening sale never lands on tomorrow's
+ *  report. A future date is rejected by default: a sale cannot have happened tomorrow, and
+ *  allowing it would let a transaction be parked outside every settlement period until then. */
+export function resolveTransactionDate(value?: string | null, options?: { allowFuture?: boolean }): Date {
+  if (value === undefined || value === null || String(value).trim() === '') return new Date();
+
+  const date = parseLocalDate(String(value).trim());
+  if (Number.isNaN(date.getTime())) {
+    throw new Error('Tanggal transaksi tidak valid');
+  }
+  if (!options?.allowFuture) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (date.getTime() > today.getTime()) {
+      throw new Error('Tanggal transaksi tidak boleh di masa depan');
+    }
+  }
+  return date;
+}
+
 /** Formats a period as it appears on the report header, e.g. `1-31 Agustus 2026`. */
 export function formatPeriodLabel(startDate: string, endDate: string): string {
   const start = parseLocalDate(startDate);

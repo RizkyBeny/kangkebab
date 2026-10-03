@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { toISODateString } from '@/constants';
 
 interface EditTransactionModalProps {
   transaction: SalesTransaction;
@@ -25,6 +26,10 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({ tran
   );
   const [paymentMethod, setPaymentMethod] = useState(transaction.paymentMethod || 'CASH');
   const [paymentStatus, setPaymentStatus] = useState(transaction.paymentStatus || 'PAID');
+
+  const [transactionDate, setTransactionDate] = useState<string>(
+    toISODateString(transaction.transactionDate ?? transaction.createdAt)
+  );
 
   const isResellerDiscount = transaction.channel === 'OFFLINE' && transaction.isReseller;
   const [discountPercent, setDiscountPercent] = useState<string>(
@@ -76,6 +81,9 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({ tran
         paymentMethod,
         paymentStatus,
         discountPercent: parsedDiscount,
+        transactionDate,
+        userId: transaction.branch?.id ? undefined : undefined,
+        userName: '',
         items: items.map(i => ({
           id: i.id,
           qty: Number(i.qty),
@@ -200,6 +208,18 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({ tran
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Tanggal Transaksi</Label>
+            <Input
+              type="date"
+              value={transactionDate}
+              onChange={(e) => setTransactionDate(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Nomor struk tetap sama. Perubahan tanggal akan mempengaruhi penempatan transaksi di periode laporan.
+            </p>
           </div>
         </div>
 

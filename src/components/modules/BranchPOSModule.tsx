@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useMemo } from 'react';
 import { BranchInventory, MasterProduct, SalesTransaction, SalesChannel, OnlinePlatform, ForwardSource, User } from '@/types';
-import { formatRupiah, FORWARD_SOURCE_LABELS } from '@/constants';
+import { formatRupiah, FORWARD_SOURCE_LABELS, toISODateString } from '@/constants';
 import { ShoppingBag, ShoppingCart, Plus, Minus, Trash2, Store, Smartphone, X, Settings2, ArrowLeftRight, Warehouse, PackageCheck } from 'lucide-react';
 import { ReceiptModal } from './ReceiptModal';
 import { Button } from '@/components/ui/button';
@@ -67,6 +67,7 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
   const [customerPhone, setCustomerPhone] = useState('');
   const [paymentStatus, setPaymentStatus] = useState('PAID');
   const [paymentMethod, setPaymentMethod] = useState('CASH');
+  const [transactionDate, setTransactionDate] = useState<string>(() => toISODateString(new Date()));
   const [ecommerceActualPrice, setEcommerceActualPrice] = useState<number | ''>('');
   const [isReseller, setIsReseller] = useState(false);
   const [discountPercent, setDiscountPercent] = useState('');
@@ -263,6 +264,7 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
           ecommerceActualPrice: ecommerceActualPrice === '' ? null : Number(ecommerceActualPrice),
           isReseller,
           discountPercent: parsedDiscount,
+          transactionDate,
         }),
       });
 
@@ -459,6 +461,16 @@ export const BranchPOSModule: React.FC<BranchPOSModuleProps> = ({
             {channel} {channel === 'ONLINE' ? `(${platform})` : ''}
             {isForward && forwardSource ? `(${FORWARD_SOURCE_LABELS[forwardSource]})` : ''}
           </span>
+        </div>
+
+        <div className="space-y-1 pt-1">
+          <Label className="text-xs font-medium">Tanggal Transaksi</Label>
+          <Input
+            type="date"
+            value={transactionDate}
+            onChange={(e) => setTransactionDate(e.target.value)}
+            className="h-9"
+          />
         </div>
 
         {isForward && (

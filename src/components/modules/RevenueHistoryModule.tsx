@@ -104,8 +104,11 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
 
   const filteredTransactions = localTransactions.filter((t) => {
     if (selectedChannel !== 'ALL' && t.channel !== selectedChannel) return false;
-    if (selectedChannel === 'ONLINE' && selectedPlatform !== 'ALL' && t.platform !== selectedPlatform)
-      return false;
+    // Platform is an axis in its own right, not a sub-filter of ONLINE. It used to be gated on
+    // `selectedChannel === 'ONLINE'`, which meant picking "Shopee" silently did nothing until you
+    // had first switched the channel dropdown — and the dropdown itself was hidden in that state,
+    // so the filter was effectively undiscoverable.
+    if (selectedPlatform !== 'ALL' && t.platform !== selectedPlatform) return false;
     if (selectedForward === 'FORWARD' && !isForwardTransaction(t)) return false;
     if (selectedForward === 'FORWARD_HQ' && !(isForwardTransaction(t) && t.forwardSource === 'HQ'))
       return false;
@@ -141,7 +144,6 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
 
   const handleExportCSV = () => {
     const headers = [
-      'No. Struk',
       'Waktu',
       'Cabang',
       'Channel',
@@ -162,7 +164,7 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
     const rows = filteredTransactions.map(t => {
       const itemsStr = t.items.map(i => `${i.masterProduct.name} (${i.qty}x)`).join('; ');
       return [
-        t.transactionNumber,
+
         formatDate(t.createdAt),
         `"${t.branch.name}"`,
         t.channel,
@@ -315,7 +317,6 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
               value={selectedChannel}
               onValueChange={(val) => {
                 setSelectedChannel(val || '');
-                if (val !== 'ONLINE') setSelectedPlatform('ALL');
               }}
             >
               <SelectTrigger className="w-40">
@@ -328,18 +329,16 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
               </SelectContent>
             </Select>
 
-            {selectedChannel === 'ONLINE' && (
-              <Select value={selectedPlatform} onValueChange={(val) => setSelectedPlatform(val || '')}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Semua Platform" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">Semua Platform</SelectItem>
-                  <SelectItem value="SHOPEE">Shopee</SelectItem>
-                  <SelectItem value="TIKTOK">TikTok</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
+            <Select value={selectedPlatform} onValueChange={(val) => setSelectedPlatform(val || '')}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Semua Platform" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Semua Platform</SelectItem>
+                <SelectItem value="SHOPEE">Shopee</SelectItem>
+                <SelectItem value="TIKTOK">TikTok</SelectItem>
+              </SelectContent>
+            </Select>
 
             <Select value={selectedForward} onValueChange={(val) => setSelectedForward(val || 'ALL')}>
               <SelectTrigger className="w-44">
@@ -478,8 +477,8 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
                   disabled={filteredTransactions.length === 0}
                 />
               </TableHead>
-              <TableHead>No. Struk</TableHead>
               <TableHead>Cabang &amp; Waktu</TableHead>
+              <TableHead>Customer</TableHead>
               <TableHead>Channel</TableHead>
               <TableHead>Produk Terjual</TableHead>
               <TableHead>Total Omzet</TableHead>
@@ -503,10 +502,14 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
                       onCheckedChange={() => toggleSelect(t.id)}
                     />
                   </TableCell>
-                  <TableCell className="font-mono font-semibold">{t.transactionNumber}</TableCell>
+
                   <TableCell>
                     <div className="font-medium">{t.branch.name}</div>
                     <div className="text-xs text-muted-foreground mt-0.5">{formatDate(t.createdAt)}</div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="font-medium">{t.customerName || '-'}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">{t.customerPhone || '-'}</div>
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap items-center gap-1.5">
@@ -587,8 +590,12 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
                       className="mt-0.5"
                     />
                     <div>
-                      <div className="font-mono font-semibold">{t.transactionNumber}</div>
+
                       <div className="text-xs text-muted-foreground mt-0.5">{formatDate(t.createdAt)}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground/80">Customer:</span> {t.customerName || '-'}
+                        {t.customerPhone && t.customerPhone !== '-' ? ` • ${t.customerPhone}` : ''}
+                      </div>
                     </div>
                   </div>
                   {channelBadge(t.channel, t.platform)}
@@ -680,10 +687,7 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
             )}
 
             <div className="divide-y divide-border/70 rounded-lg border border-border px-4 text-sm">
-              <div className="flex items-center justify-between py-2.5">
-                <span className="text-muted-foreground">No. Struk</span>
-                <span className="font-mono font-medium">{deletingTransaction.transactionNumber}</span>
-              </div>
+
               <div className="flex items-center justify-between py-2.5">
                 <span className="text-muted-foreground">Cabang</span>
                 <span className="font-medium">{deletingTransaction.branch.name}</span>

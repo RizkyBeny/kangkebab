@@ -31,9 +31,11 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    const { id, ...updateData } = body;
+    // `userId`/`userName` are stripped from the update payload and used only for the audit trail,
+    // so a client cannot set arbitrary columns by passing them alongside the editable fields.
+    const { id, userId, userName, ...updateData } = body;
     if (!id) throw new Error('Transaction ID is required');
-    const transaction = await updateSalesTransaction(id, updateData);
+    const transaction = await updateSalesTransaction(id, { ...updateData, userId, userName });
     return NextResponse.json({ success: true, data: transaction });
   } catch (error: unknown) {
     return NextResponse.json({ success: false, error: error instanceof Error ? error.message : 'Unknown error' }, { status: 400 });
