@@ -48,21 +48,13 @@ export default function Home() {
     }
   }, [currentUser, authLoading, router]);
 
-  useEffect(() => {
-    if (currentUser) {
-      if (
-        currentUser.role === 'HQ_ADMIN' &&
-        (activeTab === 'pos' || activeTab === 'reception' || activeTab === 'live_products')
-      ) {
-        setActiveTab('analytics');
-      } else if (
-        currentUser.role === 'CABANG_STAFF' &&
-        (activeTab === 'master' || activeTab === 'dispatch' || activeTab === 'inventory_global')
-      ) {
-        setActiveTab('analytics');
-      }
-    }
-  }, [currentUser, activeTab]);
+  const isForbiddenForHQ =
+    currentUser?.role === 'HQ_ADMIN' &&
+    (activeTab === 'pos' || activeTab === 'reception' || activeTab === 'live_products');
+  const isForbiddenForStaff =
+    currentUser?.role === 'CABANG_STAFF' &&
+    (activeTab === 'master' || activeTab === 'dispatch' || activeTab === 'inventory_global');
+  const effectiveTab: TabType = isForbiddenForHQ || isForbiddenForStaff ? 'analytics' : activeTab;
 
   const handleLogout = () => {
     logout();
@@ -83,7 +75,7 @@ export default function Home() {
     <SidebarProvider>
       <AppSidebar
         currentUser={currentUser}
-        activeTab={activeTab}
+        activeTab={effectiveTab}
         pendingReceptionCount={pendingReceptionCount}
         onSelectTab={setActiveTab}
         onLogout={handleLogout}
@@ -92,7 +84,7 @@ export default function Home() {
       <SidebarInset>
         <Navbar
           currentUser={currentUser}
-          activeTab={activeTab}
+          activeTab={effectiveTab}
           sseConnected={sseConnected}
           onLogout={handleLogout}
         />
@@ -108,30 +100,30 @@ export default function Home() {
           <ErrorBoundary>
             {currentUser.role === 'HQ_ADMIN' && (
               <>
-                {activeTab === 'analytics' && <HQAnalyticsModule analytics={analytics} currentUser={currentUser} />}
-                {activeTab === 'master' && <HQMasterModule products={products} currentUser={currentUser} onRefresh={refreshData} />}
-                {activeTab === 'dispatch' && (
+                {effectiveTab === 'analytics' && <HQAnalyticsModule analytics={analytics} currentUser={currentUser} />}
+                {effectiveTab === 'master' && <HQMasterModule products={products} currentUser={currentUser} onRefresh={refreshData} />}
+                {effectiveTab === 'dispatch' && (
                   <HQDispatchModule products={products} shipments={shipments} branches={branches} currentUser={currentUser} onRefresh={refreshData} />
                 )}
-                {activeTab === 'inventory_global' && <GlobalInventoryModule inventories={inventories} />}
-                {activeTab === 'reseller_prices' && (
+                {effectiveTab === 'inventory_global' && <GlobalInventoryModule inventories={inventories} />}
+                {effectiveTab === 'reseller_prices' && (
                   <ResellerPricingModule inventories={inventories} branches={branches} currentUser={currentUser} onRefresh={refreshData} />
                 )}
-                {activeTab === 'history' && <RevenueHistoryModule transactions={transactions} branches={branches} currentUser={currentUser} onRefresh={() => refreshData()} />}
-                {activeTab === 'perhitungan' && <PerhitunganModule currentUser={currentUser} branches={branches} />}
+                {effectiveTab === 'history' && <RevenueHistoryModule transactions={transactions} branches={branches} currentUser={currentUser} onRefresh={() => refreshData()} />}
+                {effectiveTab === 'perhitungan' && <PerhitunganModule currentUser={currentUser} branches={branches} />}
               </>
             )}
 
             {currentUser.role === 'CABANG_STAFF' && (
               <>
-                {activeTab === 'analytics' && <HQAnalyticsModule analytics={analytics} currentUser={currentUser} />}
-                {activeTab === 'pos' && <BranchPOSModule inventories={inventories} products={products} currentUser={currentUser} onRefresh={refreshData} />}
-                {activeTab === 'reception' && (
+                {effectiveTab === 'analytics' && <HQAnalyticsModule analytics={analytics} currentUser={currentUser} />}
+                {effectiveTab === 'pos' && <BranchPOSModule inventories={inventories} products={products} currentUser={currentUser} onRefresh={refreshData} />}
+                {effectiveTab === 'reception' && (
                   <BranchReceiveModule shipments={shipments} currentUser={currentUser} onRefresh={refreshData} sseConnected={sseConnected} />
                 )}
-                {activeTab === 'live_products' && <LiveProductsModule inventories={inventories} currentUser={currentUser} onRefresh={() => refreshData()} />}
-                {activeTab === 'history' && <RevenueHistoryModule transactions={transactions} branches={branches} currentUser={currentUser} onRefresh={() => refreshData()} />}
-                {activeTab === 'perhitungan' && <PerhitunganModule currentUser={currentUser} branches={branches} />}
+                {effectiveTab === 'live_products' && <LiveProductsModule inventories={inventories} currentUser={currentUser} onRefresh={() => refreshData()} />}
+                {effectiveTab === 'history' && <RevenueHistoryModule transactions={transactions} branches={branches} currentUser={currentUser} onRefresh={() => refreshData()} />}
+                {effectiveTab === 'perhitungan' && <PerhitunganModule currentUser={currentUser} branches={branches} />}
               </>
             )}
           </ErrorBoundary>

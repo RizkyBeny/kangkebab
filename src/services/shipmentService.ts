@@ -212,72 +212,82 @@ export async function confirmShipmentReception(
   // `status` here, outside the transaction, and then wrote `status: 'DITERIMA'` with no predicate
   // on it — so two simultaneous confirmations both read DIKIRIM and both ran the inventory
   // upsert, crediting the branch's stock twice.
-  const updatedShipment = await prisma.$transaction(async (tx) => {
-    // Claim the transition first. `status: 'DIKIRIM'` makes this an atomic compare-and-set: the
-    // loser of a race matches 0 rows and rolls back before any stock is credited.
-    const claimed = await tx.shipment.updateMany({
-      where: { id: shipmentId, status: 'DIKIRIM' },
-      data: { status: 'DITERIMA', receivedAt: new Date() },
-    });
-    if (claimed.count !== 1) {
-      throw new Error('Pengiriman ini sudah divalidasi sebelumnya');
-    }
+  const updatedShipment = await prisma.$transaction(
+    async (tx) => {
+      // Claim the transition first. `status: 'DIKIRIM'` makes this an atomic compare-and-set: the
+      // loser of a race matches 0 rows and rolls back before any stock is credited.
+      const claimed = await tx.shipment.updateMany({
+        where: { id: shipmentId, status: 'DIKIRIM' },
+        data: { status: 'DITERIMA', receivedAt: new Date() },
+      });
+      if (claimed.count !== 1) {
+        throw new Error('Pengiriman ini sudah divalidasi sebelumnya');
+      }
 
-    // Accumulate from the items we actually wrote, so the audit text can never disagree with the
-    // inventory (it used to total `itemsConfirmed`, including rows that had been skipped).
-    let totalDamaged = 0;
-
-    for (const conf of itemsConfirmed) {
-      const item = shipment.items.find((i) => i.id === conf.itemId)!;
-      const qtyReceived = Number(conf.qtyReceived);
-      const qtyDamaged = Number(conf.qtyDamaged);
-      const qtyGood = Math.max(0, qtyReceived - qtyDamaged);
-      totalDamaged += qtyDamaged;
-
-      await tx.shipmentItem.update({
-        where: { id: conf.itemId },
-        data: { qtyReceived, qtyDamaged },
+      // Accumulate damaged total from itemsConfirmed
+      let totalDamaged = 0;
+      itemsConfirmed.forEach((conf) => {
+        totalDamaged += Number(conf.qtyDamaged);
       });
 
-      await tx.branchInventory.upsert({
-        where: {
-          branchId_masterProductId: {
-            branchId: shipment.branchId,
-            masterProductId: item.masterProductId,
-          },
-        },
-        create: {
-          branchId: shipment.branchId,
-          masterProductId: item.masterProductId,
-          qtyAvailable: qtyGood,
-          qtyDamaged,
-        },
-        update: {
-          qtyAvailable: { increment: qtyGood },
-          qtyDamaged: { increment: qtyDamaged },
+      // Parallelize shipment item updates and inventory upserts within the transaction
+      await Promise.all(
+        itemsConfirmed.map(async (conf) => {
+          const item = shipment.items.find((i) => i.id === conf.itemId)!;
+          const qtyReceived = Number(conf.qtyReceived);
+          const qtyDamaged = Number(conf.qtyDamaged);
+          const qtyGood = Math.max(0, qtyReceived - qtyDamaged);
+
+          await tx.shipmentItem.update({
+            where: { id: conf.itemId },
+            data: { qtyReceived, qtyDamaged },
+          });
+
+          await tx.branchInventory.upsert({
+            where: {
+              branchId_masterProductId: {
+                branchId: shipment.branchId,
+                masterProductId: item.masterProductId,
+              },
+            },
+            create: {
+              branchId: shipment.branchId,
+              masterProductId: item.masterProductId,
+              qtyAvailable: qtyGood,
+              qtyDamaged,
+            },
+            update: {
+              qtyAvailable: { increment: qtyGood },
+              qtyDamaged: { increment: qtyDamaged },
+            },
+          });
+        })
+      );
+
+      await tx.auditLog.create({
+        data: {
+          userId,
+          userName,
+          action: 'CONFIRM_SHIPMENT_RECEPTION',
+          entity: 'Shipment',
+          entityId: shipmentId,
+          details: `Cabang ${shipment.branch.name} memvalidasi penerimaan ${shipment.shipmentNumber}. Total barang rusak/kurang: ${totalDamaged} unit`,
         },
       });
+
+      return tx.shipment.findUnique({
+        where: { id: shipmentId },
+        include: {
+          branch: true,
+          items: { include: { masterProduct: true } },
+        },
+      });
+    },
+    {
+      maxWait: 10000,
+      timeout: 30000,
     }
-
-    await tx.auditLog.create({
-      data: {
-        userId,
-        userName,
-        action: 'CONFIRM_SHIPMENT_RECEPTION',
-        entity: 'Shipment',
-        entityId: shipmentId,
-        details: `Cabang ${shipment.branch.name} memvalidasi penerimaan ${shipment.shipmentNumber}. Total barang rusak/kurang: ${totalDamaged} unit`,
-      },
-    });
-
-    return tx.shipment.findUnique({
-      where: { id: shipmentId },
-      include: {
-        branch: true,
-        items: { include: { masterProduct: true } },
-      },
-    });
-  });
+  );
 
   // Realtime SSE Broadcast event
   sseBroadcaster.emit('SHIPMENT_UPDATED', {
@@ -305,6 +315,21 @@ export async function updateShipment(
 
   if (!shipment) throw new Error('Pengiriman tidak ditemukan');
   if (shipment.status !== 'DIKIRIM') throw new Error('Hanya pengiriman berstatus Menunggu Cabang yang dapat diubah');
+
+  if (!Array.isArray(data.items) || data.items.length === 0) {
+    throw new Error('Pengiriman harus memuat minimal satu barang');
+  }
+  for (const item of data.items) {
+    if (!Number.isInteger(item.qtySent) || item.qtySent <= 0) {
+      throw new Error('Jumlah barang yang dikirim harus bilangan bulat lebih dari 0');
+    }
+    if (!Number.isFinite(item.costPrice) || item.costPrice < 0) {
+      throw new Error('Modal barang harus berupa angka >= 0');
+    }
+    if (!item.masterProductId) {
+      throw new Error('Produk pada pengiriman wajib dipilih');
+    }
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const operations: any[] = [];

@@ -20,15 +20,28 @@ export async function createMasterProduct(data: {
   userId: string;
   userName: string;
 }): Promise<MasterProduct> {
+  if (!data.sku?.trim() || !data.name?.trim() || !data.variant?.trim()) {
+    throw new Error('SKU, nama produk, dan varian wajib diisi');
+  }
+  const costPrice = Number(data.costPrice);
+  const offlineSellingPrice = Number(data.offlineSellingPrice);
+  const shopeeSellingPrice = Number(data.shopeeSellingPrice);
+  const tiktokSellingPrice = Number(data.tiktokSellingPrice);
+
+  if (!Number.isFinite(costPrice) || costPrice < 0) throw new Error('Harga modal harus angka >= 0');
+  if (!Number.isFinite(offlineSellingPrice) || offlineSellingPrice < 0) throw new Error('Harga jual Offline harus angka >= 0');
+  if (!Number.isFinite(shopeeSellingPrice) || shopeeSellingPrice < 0) throw new Error('Harga jual Shopee harus angka >= 0');
+  if (!Number.isFinite(tiktokSellingPrice) || tiktokSellingPrice < 0) throw new Error('Harga jual TikTok harus angka >= 0');
+
   const product = await prisma.masterProduct.create({
     data: {
-      sku: data.sku.toUpperCase(),
-      name: data.name,
-      variant: data.variant,
-      costPrice: data.costPrice,
-      offlineSellingPrice: data.offlineSellingPrice,
-      shopeeSellingPrice: data.shopeeSellingPrice,
-      tiktokSellingPrice: data.tiktokSellingPrice,
+      sku: data.sku.trim().toUpperCase(),
+      name: data.name.trim(),
+      variant: data.variant.trim(),
+      costPrice,
+      offlineSellingPrice,
+      shopeeSellingPrice,
+      tiktokSellingPrice,
     },
   });
 
@@ -62,17 +75,28 @@ export async function updateMasterProduct(
   }
 ): Promise<MasterProduct> {
   const oldProduct = await prisma.masterProduct.findUnique({ where: { id } });
+  if (!oldProduct) throw new Error('Produk tidak ditemukan');
+
+  const costPrice = data.costPrice !== undefined ? Number(data.costPrice) : undefined;
+  const offlineSellingPrice = data.offlineSellingPrice !== undefined ? Number(data.offlineSellingPrice) : undefined;
+  const shopeeSellingPrice = data.shopeeSellingPrice !== undefined ? Number(data.shopeeSellingPrice) : undefined;
+  const tiktokSellingPrice = data.tiktokSellingPrice !== undefined ? Number(data.tiktokSellingPrice) : undefined;
+
+  if (costPrice !== undefined && (!Number.isFinite(costPrice) || costPrice < 0)) throw new Error('Harga modal harus angka >= 0');
+  if (offlineSellingPrice !== undefined && (!Number.isFinite(offlineSellingPrice) || offlineSellingPrice < 0)) throw new Error('Harga jual Offline harus angka >= 0');
+  if (shopeeSellingPrice !== undefined && (!Number.isFinite(shopeeSellingPrice) || shopeeSellingPrice < 0)) throw new Error('Harga jual Shopee harus angka >= 0');
+  if (tiktokSellingPrice !== undefined && (!Number.isFinite(tiktokSellingPrice) || tiktokSellingPrice < 0)) throw new Error('Harga jual TikTok harus angka >= 0');
 
   const updated = await prisma.masterProduct.update({
     where: { id },
     data: {
-      sku: data.sku?.toUpperCase(),
-      name: data.name,
-      variant: data.variant,
-      costPrice: data.costPrice,
-      offlineSellingPrice: data.offlineSellingPrice,
-      shopeeSellingPrice: data.shopeeSellingPrice,
-      tiktokSellingPrice: data.tiktokSellingPrice,
+      sku: data.sku?.trim().toUpperCase(),
+      name: data.name?.trim(),
+      variant: data.variant?.trim(),
+      costPrice,
+      offlineSellingPrice,
+      shopeeSellingPrice,
+      tiktokSellingPrice,
     },
   });
 

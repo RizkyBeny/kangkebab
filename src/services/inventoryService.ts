@@ -55,16 +55,13 @@ export async function setResellerSellingPrice(data: {
     throw new Error('Harga reseller harus berupa angka >= 0');
   }
 
-  const updated = await prisma.branchInventory.update({
-    where: { id: inventory.id },
-    data: { resellerSellingPrice: price },
-    include: { masterProduct: true, branch: true },
-  });
-
-  // Audit Log written in the same transaction as the price change. Previously it ran after the
-  // update had already committed, so a failure here returned "gagal" for a change that had in fact
-  // been saved — the operator reloaded and saw the new price, with no audit trail explaining it.
-  await prisma.$transaction([
+  // Audit Log written in the same transaction as the price change so a failure rolls back both.
+  const [updated] = await prisma.$transaction([
+    prisma.branchInventory.update({
+      where: { id: inventory.id },
+      data: { resellerSellingPrice: price },
+      include: { masterProduct: true, branch: true },
+    }),
     prisma.auditLog.create({
       data: {
         userId: data.userId,
@@ -112,44 +109,50 @@ export async function recoverDamagedInventory(data: {
   // `qty > qtyDamaged` on a read taken OUTSIDE the transaction and then wrote an unguarded
   // decrement, so two concurrent recoveries both passed the check and left `qtyDamaged`
   // negative while `qtyAvailable` absorbed both increments — recovering more units than existed.
-  const results = await prisma.$transaction(async (tx) => {
-    const claimed = await tx.branchInventory.updateMany({
-      where: {
-        id: inventory.id,
-        qtyDamaged: { gte: data.qty },
-      },
-      data: {
-        qtyDamaged: { decrement: data.qty },
-        qtyAvailable: { increment: data.qty },
-      },
-    });
-
-    if (claimed.count !== 1) {
-      const current = await tx.branchInventory.findUnique({
-        where: { id: inventory.id },
-        select: { qtyDamaged: true },
+  const results = await prisma.$transaction(
+    async (tx) => {
+      const claimed = await tx.branchInventory.updateMany({
+        where: {
+          id: inventory.id,
+          qtyDamaged: { gte: data.qty },
+        },
+        data: {
+          qtyDamaged: { decrement: data.qty },
+          qtyAvailable: { increment: data.qty },
+        },
       });
-      throw new Error(
-        `Jumlah rusak/hilang tidak mencukupi (Rusak: ${current?.qtyDamaged ?? 0}, Diminta: ${data.qty})`
-      );
+
+      if (claimed.count !== 1) {
+        const current = await tx.branchInventory.findUnique({
+          where: { id: inventory.id },
+          select: { qtyDamaged: true },
+        });
+        throw new Error(
+          `Jumlah rusak/hilang tidak mencukupi (Rusak: ${current?.qtyDamaged ?? 0}, Diminta: ${data.qty})`
+        );
+      }
+
+      await tx.auditLog.create({
+        data: {
+          userId: data.userId,
+          userName: data.userName,
+          action: 'RECOVER_DAMAGED_INVENTORY',
+          entity: 'BranchInventory',
+          entityId: inventory.id,
+          details: `${data.userName} mengembalikan ${data.qty} unit ${inventory.masterProduct.name} (${inventory.masterProduct.sku}) dari rusak/hilang ke stok jual di ${inventory.branch.name}`,
+        },
+      });
+
+      return tx.branchInventory.findUnique({
+        where: { id: inventory.id },
+        include: { masterProduct: true, branch: true },
+      });
+    },
+    {
+      maxWait: 10000,
+      timeout: 30000,
     }
-
-    await tx.auditLog.create({
-      data: {
-        userId: data.userId,
-        userName: data.userName,
-        action: 'RECOVER_DAMAGED_INVENTORY',
-        entity: 'BranchInventory',
-        entityId: inventory.id,
-        details: `${data.userName} mengembalikan ${data.qty} unit ${inventory.masterProduct.name} (${inventory.masterProduct.sku}) dari rusak/hilang ke stok jual di ${inventory.branch.name}`,
-      },
-    });
-
-    return tx.branchInventory.findUnique({
-      where: { id: inventory.id },
-      include: { masterProduct: true, branch: true },
-    });
-  });
+  );
 
   const updatedInventory = results;
 

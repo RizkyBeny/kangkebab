@@ -79,7 +79,16 @@ export function useDashboardData({ currentUser }: UseDashboardDataOptions): UseD
   }, [currentUser]);
 
   useEffect(() => {
-    if (currentUser) refreshData();
+    if (!currentUser) return;
+    let ignore = false;
+    (async () => {
+      if (!ignore) {
+        await refreshData();
+      }
+    })();
+    return () => {
+      ignore = true;
+    };
   }, [currentUser, refreshData]);
 
   return { branches, products, shipments, inventories, transactions, analytics, refreshData };

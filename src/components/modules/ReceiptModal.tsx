@@ -59,7 +59,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ transaction, onClose
     doc.setFontSize(7);
     doc.text(`No. Struk: ${transaction.transactionNumber}`, 5, currentY);
     currentY += 4;
-    doc.text(`Tanggal  : ${formatDate(transaction.createdAt)}`, 5, currentY);
+    doc.text(`Tanggal  : ${formatDate(transaction.transactionDate ?? transaction.createdAt)}`, 5, currentY);
     currentY += 4;
     doc.text(
       transaction.channel === 'ONLINE'
@@ -191,7 +191,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ transaction, onClose
             </div>
             <div className="flex justify-between">
               <span>Waktu</span>
-              <span className="font-semibold text-foreground">{formatDate(transaction.createdAt)}</span>
+              <span className="font-semibold text-foreground">{formatDate(transaction.transactionDate ?? transaction.createdAt)}</span>
             </div>
             <div className="flex justify-between">
               <span>Customer</span>

@@ -359,19 +359,17 @@ export async function updateSalesTransaction(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const operations: any[] = [];
   let baseAmount = existingTx.totalAmount;
+  let newTotalCost = existingTx.totalCost;
+  const deductStock = shouldDeductStock(existingTx.forwardSource);
+  const itemChanges: string[] = [];
 
   if (data.items && data.items.length > 0) {
-    // We update each item's qty and sellingPrice.
-    // NOTE: If qty changes, we should ideally adjust inventory, but since this is history editing,
-    // we assume the user only fixes mistakes or edits prices.
-    // For simplicity, we just update the transaction item values and recalculate totals.
     let calcTotalAmount = 0;
-    
+    let calcTotalCost = 0;
+
     for (const item of data.items) {
       const existingItem = existingTx.items.find(i => i.id === item.id);
       if (existingItem) {
-        // These reached the database unchecked before, so a NaN or negative qty/price could be
-        // persisted straight onto the ledger.
         const qty = Math.floor(Number(item.qty));
         const sellingPrice = Number(item.sellingPrice);
         if (!Number.isFinite(qty) || qty < 0) {
@@ -382,19 +380,72 @@ export async function updateSalesTransaction(
         }
 
         calcTotalAmount += qty * sellingPrice;
-        
+        calcTotalCost += qty * existingItem.costPrice;
+
+        const qtyDelta = qty - existingItem.qty;
+        if (qtyDelta !== 0 && deductStock) {
+          if (qtyDelta > 0) {
+            // Need more stock from branch
+            const inv = await prisma.branchInventory.findUnique({
+              where: {
+                branchId_masterProductId: {
+                  branchId: existingTx.branchId,
+                  masterProductId: existingItem.masterProductId,
+                },
+              },
+            });
+            if (!inv || inv.qtyAvailable < qtyDelta) {
+              throw new Error(
+                `Stok tidak mencukupi untuk menambah jumlah (Tersedia: ${inv?.qtyAvailable || 0}, Tambahan: ${qtyDelta})`
+              );
+            }
+            operations.push(
+              prisma.branchInventory.update({
+                where: {
+                  branchId_masterProductId: {
+                    branchId: existingTx.branchId,
+                    masterProductId: existingItem.masterProductId,
+                  },
+                },
+                data: { qtyAvailable: { decrement: qtyDelta } },
+              })
+            );
+          } else {
+            // Decreased qty -> return stock to branch
+            const returnQty = Math.abs(qtyDelta);
+            operations.push(
+              prisma.branchInventory.update({
+                where: {
+                  branchId_masterProductId: {
+                    branchId: existingTx.branchId,
+                    masterProductId: existingItem.masterProductId,
+                  },
+                },
+                data: { qtyAvailable: { increment: returnQty } },
+              })
+            );
+          }
+        }
+
+        if (qty !== existingItem.qty || sellingPrice !== existingItem.sellingPrice) {
+          itemChanges.push(
+            `Item ${existingItem.masterProductId}: qty ${existingItem.qty}->${qty}, harga ${existingItem.sellingPrice}->${sellingPrice}`
+          );
+        }
+
         operations.push(
           prisma.salesTransactionItem.update({
             where: { id: item.id },
             data: {
               qty,
               sellingPrice,
-            }
+            },
           })
         );
       }
     }
     baseAmount = calcTotalAmount;
+    newTotalCost = calcTotalCost;
   }
   baseAmount = Math.max(0, baseAmount);
 
@@ -420,6 +471,7 @@ export async function updateSalesTransaction(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const updateData: any = {
     totalAmount: newTotalAmount,
+    totalCost: newTotalCost,
     discountPercent: existingTx.channel === 'OFFLINE' && existingTx.isReseller ? discountPercent : 0,
     discountAmount:
       existingTx.channel === 'OFFLINE' && existingTx.isReseller
@@ -440,6 +492,7 @@ export async function updateSalesTransaction(
     updateData.transactionDate = nextTransactionDate;
   }
 
+  const updateTxIndex = operations.length;
   operations.push(
     prisma.salesTransaction.update({
       where: { id },
@@ -455,9 +508,6 @@ export async function updateSalesTransaction(
     })
   );
 
-  // This function wrote no audit trail at all before, so a corrected date or a re-priced receipt
-  // left no record that the ledger had been edited. The date change is called out explicitly
-  // (old -> new) because it silently moves the sale to a different settlement period.
   const dateChanged =
     nextTransactionDate !== null &&
     toISODateString(nextTransactionDate) !== toISODateString(existingTx.transactionDate);
@@ -477,8 +527,23 @@ export async function updateSalesTransaction(
     );
   }
 
+  if (itemChanges.length > 0 || newTotalAmount !== existingTx.totalAmount) {
+    operations.push(
+      prisma.auditLog.create({
+        data: {
+          userId: data.userId || 'UNKNOWN',
+          userName: data.userName || 'Tidak diketahui',
+          action: 'UPDATE_SALES_TRANSACTION',
+          entity: 'SalesTransaction',
+          entityId: id,
+          details: `${data.userName || 'Seseorang'} memperbarui transaksi ${existingTx.transactionNumber}. Total: Rp ${existingTx.totalAmount} -> Rp ${newTotalAmount}. ${itemChanges.join('; ')}`,
+        },
+      })
+    );
+  }
+
   const results = await prisma.$transaction(operations);
-  const updatedTx = results[results.length - 1];
+  const updatedTx = results[updateTxIndex];
 
   sseBroadcaster.emit('SALES_UPDATED', {
     type: 'TRANSACTION_UPDATED',

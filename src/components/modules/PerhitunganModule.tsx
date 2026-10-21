@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import {
@@ -376,30 +376,46 @@ export const PerhitunganModule: React.FC<PerhitunganModuleProps> = ({ currentUse
   // Gross margin net of the hand-entered expenses — the figure the profit share is based on.
   const netMargin = report ? report.totals.margin - expenseTotal : 0;
 
-  const loadReport = useCallback(async () => {
-    if (!effectiveBranchId || !startDate || !endDate) return;
-    setLoading(true);
-    setErrorMsg('');
-    // A new period/branch is a new settlement: never carry hand-typed expenses across.
-    setExpenses({ packingFee: '', ads: '', utility: '', sharesBenny: '', sharesRiyan: '' });
-    setShowExpenses(false);
-    try {
-      const params = new URLSearchParams({ branchId: effectiveBranchId, startDate, endDate });
-      const res = await fetch(`/api/reports/perhitungan?${params.toString()}`, { cache: 'no-store' });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error);
-      setReport(data.data);
-    } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : 'Gagal memuat laporan perhitungan');
-      setReport(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [effectiveBranchId, startDate, endDate]);
-
   useEffect(() => {
-    loadReport();
-  }, [loadReport]);
+    let ignore = false;
+    if (!effectiveBranchId || !startDate || !endDate) return;
+
+    // Reset hand-entered expenses on branch/period change
+    queueMicrotask(() => {
+      setExpenses({ packingFee: '', ads: '', utility: '', sharesBenny: '', sharesRiyan: '' });
+      setShowExpenses(false);
+    });
+
+    const params = new URLSearchParams({ branchId: effectiveBranchId, startDate, endDate });
+    const controller = new AbortController();
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/reports/perhitungan?${params.toString()}`, {
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        const data = await res.json();
+        if (ignore) return;
+        if (!data.success) throw new Error(data.error);
+        setReport(data.data);
+        setErrorMsg('');
+      } catch (err: unknown) {
+        if (ignore || (err instanceof DOMException && err.name === 'AbortError')) return;
+        setErrorMsg(err instanceof Error ? err.message : 'Gagal memuat laporan perhitungan');
+        setReport(null);
+      } finally {
+        if (!ignore) {
+          setLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      ignore = true;
+      controller.abort();
+    };
+  }, [effectiveBranchId, startDate, endDate]);
 
   const handleExportPDF = () => {
     if (!report) return;

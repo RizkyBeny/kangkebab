@@ -128,100 +128,108 @@ export async function createBelanjaOrder(data: {
       // decremented — leaving `qtyAvailable` negative. Here the guard is part of the write:
       // `qtyAvailable: { gte: qty }` makes Postgres re-test availability under the row lock at the
       // moment of the UPDATE, so the loser of the race matches 0 rows and rolls the whole order back.
-      const createdOrder = await prisma.$transaction(async (tx) => {
-        for (const line of itemData) {
-          const claimed = await tx.branchInventory.updateMany({
-            where: {
-              branchId: branch.id,
-              masterProductId: line.masterProductId,
-              qtyAvailable: { gte: line.qty },
-            },
-            data: { qtyAvailable: { decrement: line.qty } },
-          });
-
-          if (claimed.count !== 1) {
-            // Re-read for a useful message. This is the only place availability is observed, and
-            // observing it is safe: the decision to write has already been made and failed.
-            const current = await tx.branchInventory.findUnique({
-              where: {
-                branchId_masterProductId: {
+      const createdOrder = await prisma.$transaction(
+        async (tx) => {
+          await Promise.all(
+            itemData.map(async (line) => {
+              const claimed = await tx.branchInventory.updateMany({
+                where: {
                   branchId: branch.id,
                   masterProductId: line.masterProductId,
+                  qtyAvailable: { gte: line.qty },
                 },
+                data: { qtyAvailable: { decrement: line.qty } },
+              });
+
+              if (claimed.count !== 1) {
+                // Re-read for a useful message. This is the only place availability is observed, and
+                // observing it is safe: the decision to write has already been made and failed.
+                const current = await tx.branchInventory.findUnique({
+                  where: {
+                    branchId_masterProductId: {
+                      branchId: branch.id,
+                      masterProductId: line.masterProductId,
+                    },
+                  },
+                  include: { masterProduct: { select: { name: true } } },
+                });
+                const prodName = current?.masterProduct?.name || 'Produk';
+                throw new Error(
+                  `Stok ${prodName} tidak mencukupi (Tersedia: ${current?.qtyAvailable ?? 0}, Diminta: ${line.qty})`
+                );
+              }
+            })
+          );
+
+          await tx.salesTransaction.create({
+            data: {
+              transactionNumber,
+              branchId: branch.id,
+              channel: 'OFFLINE',
+              platform: 'NONE',
+              customerName: data.customerName,
+              customerPhone: data.customerPhone,
+              paymentStatus: 'PAID',
+              paymentMethod,
+              isReseller: true,
+              discountPercent: 0,
+              discountAmount: 0,
+              totalAmount,
+              totalCost,
+              transactionDate: new Date(),
+              items: {
+                create: itemData.map((i) => ({
+                  masterProductId: i.masterProductId,
+                  qty: i.qty,
+                  sellingPrice: i.unitPrice,
+                  costPrice: i.costPrice,
+                })),
               },
-              include: { masterProduct: { select: { name: true } } },
-            });
-            const prodName = current?.masterProduct?.name || 'Produk';
-            throw new Error(
-              `Stok ${prodName} tidak mencukupi (Tersedia: ${current?.qtyAvailable ?? 0}, Diminta: ${line.qty})`
-            );
-          }
-        }
-
-        await tx.salesTransaction.create({
-          data: {
-            transactionNumber,
-            branchId: branch.id,
-            channel: 'OFFLINE',
-            platform: 'NONE',
-            customerName: data.customerName,
-            customerPhone: data.customerPhone,
-            paymentStatus: 'PAID',
-            paymentMethod,
-            isReseller: true,
-            discountPercent: 0,
-            discountAmount: 0,
-            totalAmount,
-            totalCost,
-            transactionDate: new Date(),
-            items: {
-              create: itemData.map((i) => ({
-                masterProductId: i.masterProductId,
-                qty: i.qty,
-                sellingPrice: i.unitPrice,
-                costPrice: i.costPrice,
-              })),
             },
-          },
-        });
+          });
 
-        const order = await tx.belanjaOrder.create({
-          data: {
-            orderNumber,
-            branchId: branch.id,
-            customerName: data.customerName,
-            customerPhone: data.customerPhone,
-            address: fulfillment === 'COURIER' ? (data.address?.trim() ?? null) : null,
-            fulfillment,
-            deliveryFee,
-            notes,
-            status: 'DIKONFIRMASI',
-            transactionNumber,
-            confirmedAt: new Date(),
-            totalAmount: totalAmount + deliveryFee,
-            totalCost,
-            items: { create: itemData },
-          },
-          include: { branch: true, items: { include: { masterProduct: true } } },
-        });
+          const order = await tx.belanjaOrder.create({
+            data: {
+              orderNumber,
+              branchId: branch.id,
+              customerName: data.customerName,
+              customerPhone: data.customerPhone,
+              address: fulfillment === 'COURIER' ? (data.address?.trim() ?? null) : null,
+              fulfillment,
+              deliveryFee,
+              notes,
+              status: 'DIKONFIRMASI',
+              transactionNumber,
+              confirmedAt: new Date(),
+              totalAmount: totalAmount + deliveryFee,
+              totalCost,
+              items: { create: itemData },
+            },
+            include: { branch: true, items: { include: { masterProduct: true } } },
+          });
 
-        // Inside the transaction on purpose. Written after the commit it used to fail on its own,
-        // which returned "gagal" to the customer for an order that had already been placed — and the
-        // customer, seeing the error, submitted again and got a duplicate order plus a second
-        // stock decrement.
-        await tx.auditLog.create({
-          data: {
-            userId: 'PUBLIC',
-            userName: 'Katalog Belanja',
-            action: 'CREATE_BELANJA_ORDER',
-            entity: 'BelanjaOrder',
-            entityId: order.id,
-            details: `Pesanan ${orderNumber} diproses otomatis via katalog belanja di ${branch.name}. Invoice ${transactionNumber}, ${totalQty} unit stok terkurangi. Total: Rp ${totalAmount}`,
-          },
-        });
+          // Inside the transaction on purpose. Written after the commit it used to fail on its own,
+          // which returned "gagal" to the customer for an order that had already been placed — and the
+          // customer, seeing the error, submitted again and got a duplicate order plus a second
+          // stock decrement.
+          await tx.auditLog.create({
+            data: {
+              userId: 'PUBLIC',
+              userName: 'Katalog Belanja',
+              action: 'CREATE_BELANJA_ORDER',
+              entity: 'BelanjaOrder',
+              entityId: order.id,
+              details: `Pesanan ${orderNumber} diproses otomatis via katalog belanja di ${branch.name}. Invoice ${transactionNumber}, ${totalQty} unit stok terkurangi. Total: Rp ${totalAmount}`,
+            },
+          });
 
-        return order;
-      });
+          return order;
+        },
+        {
+          maxWait: 10000,
+          timeout: 30000,
+        }
+      );
 
       sseBroadcaster.emit('SALES_UPDATED', {
         type: 'TRANSACTION_CREATED',

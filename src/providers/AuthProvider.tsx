@@ -22,15 +22,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const saved = localStorage.getItem('kangkebab_user_session');
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('kangkebab_user_session') : null;
     if (saved) {
       try {
-        setCurrentUser(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        queueMicrotask(() => {
+          setCurrentUser(parsed);
+          setLoading(false);
+        });
+        return;
       } catch {
         localStorage.removeItem('kangkebab_user_session');
       }
     }
-    setLoading(false);
+    queueMicrotask(() => {
+      setLoading(false);
+    });
   }, []);
 
   const login = async (email: string, pass: string): Promise<{ success: boolean; error?: string }> => {

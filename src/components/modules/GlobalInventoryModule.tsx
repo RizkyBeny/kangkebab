@@ -66,7 +66,7 @@ export const GlobalInventoryModule: React.FC<GlobalInventoryModuleProps> = ({ in
             ) : (
               inventories.map((inv) => (
                 <TableRow key={inv.id}>
-                  <TableCell className="font-medium">{inv.branch?.name || 'Cabang Madiun'}</TableCell>
+                  <TableCell className="font-medium">{inv.branch?.name || 'Cabang'}</TableCell>
                   <TableCell className="font-mono text-xs text-foreground/70">{inv.masterProduct.sku}</TableCell>
                   <TableCell>
                     <div className="font-medium">{inv.masterProduct.name}</div>
@@ -109,7 +109,7 @@ export const GlobalInventoryModule: React.FC<GlobalInventoryModuleProps> = ({ in
                       <span className="font-mono">{inv.masterProduct.sku}</span>
                     </div>
                   </div>
-                  <Badge variant="secondary">{inv.branch?.name || 'Cabang Madiun'}</Badge>
+                  <Badge variant="secondary">{inv.branch?.name || 'Cabang'}</Badge>
                 </div>
 
                 <div className="divide-y divide-border/70 text-sm">

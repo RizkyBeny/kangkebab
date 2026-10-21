@@ -197,6 +197,7 @@ export default function BelanjaPage() {
         transactionNumber: data.data.transactionNumber,
         totalAmount: data.data.totalAmount,
       });
+      loadCatalog(selectedBranchId);
     } catch (err: unknown) {
       setCheckoutError(err instanceof Error ? err.message : 'Gagal mengirim pesanan');
     } finally {

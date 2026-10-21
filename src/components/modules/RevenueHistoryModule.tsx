@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { SalesTransaction, Branch, User } from '@/types';
 import { formatRupiah, formatDate, isForwardTransaction, forwardSettlementSign } from '@/constants';
-import { AlertTriangle, ArrowLeftRight, DollarSign, Download, History, Loader2, Music2, Pencil, ShoppingBag, Smartphone, Store, Trash2 } from 'lucide-react';
+import { ArrowLeftRight, DollarSign, Download, History, Loader2, Music2, Pencil, ShoppingBag, Smartphone, Store, Trash2 } from 'lucide-react';
 import { ReceiptModal } from './ReceiptModal';
 import { EditTransactionModal } from './EditTransactionModal';
 import { Button } from '@/components/ui/button';
@@ -95,12 +95,14 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
   const [confirmedIds, setConfirmedIds] = useState<string[]>([]);
   const [bulkError, setBulkError] = useState('');
 
-  const [localTransactions, setLocalTransactions] = useState<SalesTransaction[]>(transactions);
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
+  const [updatedTxs, setUpdatedTxs] = useState<Map<string, SalesTransaction>>(new Map());
 
-  // Sync with props if transactions change from outside (e.g. initial load)
-  React.useEffect(() => {
-    setLocalTransactions(transactions);
-  }, [transactions]);
+  const localTransactions = React.useMemo(() => {
+    return transactions
+      .filter((t) => !deletedIds.has(t.id))
+      .map((t) => updatedTxs.get(t.id) || t);
+  }, [transactions, deletedIds, updatedTxs]);
 
   const filteredTransactions = localTransactions.filter((t) => {
     if (selectedChannel !== 'ALL' && t.channel !== selectedChannel) return false;
@@ -144,6 +146,7 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
 
   const handleExportCSV = () => {
     const headers = [
+      'No. Transaksi',
       'Waktu',
       'Cabang',
       'Channel',
@@ -161,25 +164,31 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
       'Item Terjual'
     ];
     
+    const escapeCsv = (str: string | number | null | undefined) => {
+      if (str === null || str === undefined) return '""';
+      const s = String(str).replace(/"/g, '""');
+      return `"${s}"`;
+    };
+
     const rows = filteredTransactions.map(t => {
       const itemsStr = t.items.map(i => `${i.masterProduct.name} (${i.qty}x)`).join('; ');
       return [
-
-        formatDate(t.createdAt),
-        `"${t.branch.name}"`,
-        t.channel,
-        t.platform || '-',
-        isForwardTransaction(t) ? (t.forwardSource === 'HQ' ? 'HQ' : 'CABANG') : '-',
-        t.isReseller ? 'YA' : 'TIDAK',
+        escapeCsv(t.transactionNumber),
+        escapeCsv(formatDate(t.transactionDate ?? t.createdAt)),
+        escapeCsv(t.branch.name),
+        escapeCsv(t.channel),
+        escapeCsv(t.platform || '-'),
+        escapeCsv(isForwardTransaction(t) ? (t.forwardSource === 'HQ' ? 'HQ' : 'CABANG') : '-'),
+        escapeCsv(t.isReseller ? 'YA' : 'TIDAK'),
         t.discountPercent > 0 ? t.discountPercent : 0,
         t.discountAmount > 0 ? t.discountAmount : 0,
-        `"${t.customerName || '-'}"`,
-        `"${t.customerPhone || '-'}"`,
-        t.paymentMethod || '-',
-        t.paymentStatus || '-',
+        escapeCsv(t.customerName || '-'),
+        escapeCsv(t.customerPhone || '-'),
+        escapeCsv(t.paymentMethod || '-'),
+        escapeCsv(t.paymentStatus || '-'),
         t.totalAmount,
         t.totalCost,
-        `"${itemsStr}"`
+        escapeCsv(itemsStr)
       ];
     });
 
@@ -215,7 +224,7 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
       if (!data.success) throw new Error(data.error);
 
       const deletedId = deletingTransaction.id;
-      setLocalTransactions((prev) => prev.filter((t) => t.id !== deletedId));
+      setDeletedIds((prev) => new Set(prev).add(deletedId));
       setDeletingTransaction(null);
       if (editingTransaction?.id === deletedId) setEditingTransaction(null);
       onRefresh?.();
@@ -275,7 +284,11 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
       if (!data.success) throw new Error(data.error);
 
       const deletedSet = new Set(confirmedIds);
-      setLocalTransactions((prev) => prev.filter((t) => !deletedSet.has(t.id)));
+      setDeletedIds((prev) => {
+        const next = new Set(prev);
+        confirmedIds.forEach((id) => next.add(id));
+        return next;
+      });
       setSelectedIds((prev) => {
         const next = new Set(prev);
         confirmedIds.forEach((id) => next.delete(id));
@@ -663,11 +676,13 @@ export const RevenueHistoryModule: React.FC<RevenueHistoryModuleProps> = ({
       
       {editingTransaction && (
         <EditTransactionModal 
-          transaction={editingTransaction} 
+          transaction={editingTransaction}
+          currentUser={currentUser}
           onClose={() => setEditingTransaction(null)}
           onSuccess={(updatedTx) => {
-            setLocalTransactions(prev => prev.map(t => t.id === updatedTx.id ? updatedTx : t));
+            setUpdatedTxs((prev) => new Map(prev).set(updatedTx.id, updatedTx));
             setEditingTransaction(null);
+            onRefresh?.();
           }}
         />
       )}

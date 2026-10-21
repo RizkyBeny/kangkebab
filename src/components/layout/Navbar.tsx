@@ -3,7 +3,7 @@
 import React from "react";
 import { User, TabType } from "@/types";
 import { TAB_LABELS } from "@/constants";
-import { Radio, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SidebarTrigger } from "@/components/ui/sidebar";

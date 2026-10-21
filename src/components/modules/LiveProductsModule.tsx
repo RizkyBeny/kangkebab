@@ -79,7 +79,7 @@ export const LiveProductsModule: React.FC<LiveProductsModuleProps> = ({ inventor
     <div className="space-y-6 md:space-y-8">
       <PageHeader
         title="Katalog Live Product & Stok Opname"
-        description={`Daftar stok produk siap jual di ${currentUser.branch?.name || 'Cabang Madiun'} beserta perbandingan harga Offline, Shopee & TikTok. Barang yang salah tercatat rusak/hilang dapat dikembalikan ke stok jual.`}
+        description={`Daftar stok produk siap jual di ${currentUser.branch?.name || 'Cabang Anda'} beserta perbandingan harga Offline, Shopee & TikTok. Barang yang salah tercatat rusak/hilang dapat dikembalikan ke stok jual.`}
         icon={Store}
       />
 

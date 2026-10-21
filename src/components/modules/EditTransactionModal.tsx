@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { SalesTransaction } from '@/types';
+import { User, SalesTransaction } from '@/types';
 import { Check, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ResponsiveModal } from '@/components/ui/ResponsiveModal';
@@ -11,11 +11,12 @@ import { toISODateString } from '@/constants';
 
 interface EditTransactionModalProps {
   transaction: SalesTransaction;
+  currentUser?: User;
   onClose: () => void;
   onSuccess: (updatedTx: SalesTransaction) => void;
 }
 
-export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({ transaction, onClose, onSuccess }) => {
+export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({ transaction, currentUser, onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -82,8 +83,8 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({ tran
         paymentStatus,
         discountPercent: parsedDiscount,
         transactionDate,
-        userId: transaction.branch?.id ? undefined : undefined,
-        userName: '',
+        userId: currentUser?.id,
+        userName: currentUser?.name || 'Petugas',
         items: items.map(i => ({
           id: i.id,
           qty: Number(i.qty),
